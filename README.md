@@ -18,6 +18,25 @@ This tool is designed exclusively for **authorized security testing and research
 
 ## Installation
 
+### Option 1: Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/akilhassane/mcp-pentest-forge.git
+
+# Navigate to the directory
+cd mcp-pentest-forge
+
+# Build and run with Docker Compose (recommended)
+docker-compose up --build
+
+# Or build and run manually
+docker build -t mcp-pentest-forge .
+docker run -it --rm mcp-pentest-forge
+```
+
+### Option 2: Local Node.js Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/akilhassane/mcp-pentest-forge.git
@@ -28,12 +47,33 @@ cd mcp-pentest-forge
 # Install dependencies
 npm install
 
-# Configure your environment
+# Configure your environment (optional)
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 ## Usage
+
+### Docker Usage
+
+```bash
+# Start the MCP server with Docker Compose
+docker-compose up
+
+# Run in detached mode
+docker-compose up -d
+
+# Stop the server
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Manual Docker commands
+docker run -it --rm mcp-pentest-forge
+```
+
+### Local Usage
 
 ```bash
 # Start the MCP server
@@ -42,6 +82,19 @@ npm start
 # Or with custom configuration
 npm run dev -- --config ./config/security.json
 ```
+
+### Available Tools
+
+The MCP server provides the following pentesting tools:
+
+- **port_scan**: Scan ports on a target host
+- **dns_lookup**: Perform DNS lookup for a domain
+- **web_headers**: Get HTTP headers from a web server
+- **ssl_info**: Get SSL certificate information
+
+### Integration with MCP Clients
+
+This server communicates via stdio using the Model Context Protocol. Connect it to MCP-compatible clients like Claude Desktop or other MCP-enabled applications.
 
 ## Contributing
 

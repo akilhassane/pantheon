@@ -1,0 +1,23 @@
+{
+  "name": "mcp-pentest-forge",
+  "version": "1.0.0",
+  "description": "MCP server for ethical hacking and cybersecurity research",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "docker:build": "docker build -t mcp-pentest-forge .",
+    "docker:run": "docker run -it --rm mcp-pentest-forge",
+    "docker:compose": "docker-compose up --build"
+  },
+  "keywords": ["mcp", "pentest", "security", "cybersecurity"],
+  "author": "akilhassane",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
