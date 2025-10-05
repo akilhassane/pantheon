@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcp-pentest-forge": {
+      "command": "node",
+      "args": [
+        "C:\\MCP\\mcp-server\\server.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+

@@ -1,0 +1,60 @@
+# Kali Linux Container for Pentesting
+FROM kalilinux/kali-rolling:latest
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+ENV TERM=xterm-256color
+
+# Update and upgrade
+RUN apt-get update && apt-get upgrade -y
+
+# Install essential tools and utilities
+RUN apt-get install -y \
+    # Basic utilities
+    wget curl git vim nano sudo zsh \
+    # Network tools
+    net-tools iputils-ping iproute2 dnsutils \
+    # Kali metapackages (common tools)
+    kali-tools-top10 \
+    # Additional useful tools
+    nmap masscan nikto sqlmap metasploit-framework \
+    dirb gobuster hydra john hashcat \
+    wireshark tcpdump netcat-traditional \
+    exploitdb \
+    # Python and development tools
+    python3 python3-pip python3-venv \
+    # Text processing
+    jq \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages via apt (more stable in Kali)
+RUN apt-get update && apt-get install -y \
+    python3-impacket \
+    python3-requests \
+    python3-bs4 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for pentesting
+RUN useradd -m -s /bin/zsh -G sudo pentester && \
+    echo "pentester:pentester" | chpasswd && \
+    echo "pentester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create workspace directory
+RUN mkdir -p /workspace && \
+    chown -R pentester:pentester /workspace
+
+# Set working directory
+WORKDIR /workspace
+
+# Switch to pentester user
+USER pentester
+
+# Set up a nice shell prompt
+RUN echo 'export PS1="\[\e[1;32m\]kali@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]$ "' >> ~/.zshrc
+
+# Default command
+CMD ["/bin/zsh"]
+

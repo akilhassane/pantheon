@@ -14,3 +14,14 @@ coverage/
 dist/
 build/
 
+# Workspace and tools directories
+workspace/*.txt
+workspace/*.log
+tools/*
+
+# User-specific configs
+claude_desktop_config.json
+*.ps1
+
+# Backup files
+*.backup

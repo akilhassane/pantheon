@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "mcp-pentest-forge": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--network", "mcp-pentest-forge-network",
+        "mcp-server-mcp-pentest-forge"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+
