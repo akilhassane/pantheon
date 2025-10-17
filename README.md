@@ -42,7 +42,23 @@ This tool is designed exclusively for **authorized security testing and research
 - Following responsible disclosure practices
 - Using the tool ethically and legally
 
+## 📖 Documentation
+
+### 🚀 **[Complete Setup Guide](SETUP.md)** - Start Here!
+
+Comprehensive guides available:
+- 🚀 **[SETUP.md](SETUP.md)** - **Complete step-by-step setup guide for all platforms**
+- 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md) - Complete n8n workflow integration
+- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md) - Remote console and cloud deployment
+- 🌐 [ngrok Setup Guide](docs/NGROK_SETUP.md) - Expose server to the internet
+- ⚡ [ngrok Quick Start](NGROK_QUICK_START.md) - 3-minute internet access setup
+- 📘 [Quick Start n8n](docs/QUICK_START_N8N.md) - 5-minute n8n setup
+- 📘 [API Reference](docs/API_REFERENCE.md) - Complete HTTP API documentation
+- 📺 [YouTube Resources](docs/YOUTUBE_RESOURCES.md) - Video tutorials and learning path
+
 ## 📦 Installation
+
+> 📘 **For detailed setup instructions, see [SETUP.md](SETUP.md)**
 
 ### Prerequisites
 
@@ -71,7 +87,20 @@ docker-compose logs -f
 
 That's it! Both the MCP server and Kali Linux environment are now running.
 
+📘 **Next**: See [SETUP.md](SETUP.md) for integrating with Claude Desktop, Cursor IDE, or n8n.
+
 ## 🎮 Usage
+
+### Dual Mode Operation
+
+This server supports **two operation modes**:
+
+1. **stdio Mode** (Default): For local Claude Desktop and Cursor IDE integration
+2. **HTTP Mode**: For n8n integration and remote console access
+
+See detailed guides:
+- 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md) - Complete n8n workflow integration
+- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md) - Remote console and cloud deployment
 
 ### Integration with MCP Clients
 
@@ -135,6 +164,34 @@ The server provides a single powerful tool:
   - Lists accessible shares
   - Reports accessible resources
 ```
+
+### HTTP Mode (for n8n and Remote Access)
+
+To enable HTTP mode for n8n integration or remote access:
+
+```bash
+# Create environment file
+cp env.template .env
+
+# Edit .env and uncomment HTTP_PORT
+# HTTP_PORT=3000
+
+# Restart containers
+docker-compose restart
+
+# Test HTTP endpoint
+curl http://localhost:3000/
+curl http://localhost:3000/api/tools
+
+# Execute a command via HTTP
+curl -X POST http://localhost:3000/api/tools/kali_execute \
+  -H "Content-Type: application/json" \
+  -d '{"arguments": {"command": "nmap -sV 192.168.1.1"}}'
+```
+
+For complete n8n setup and remote access configuration, see:
+- 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md)
+- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md)
 
 ### Direct Container Access
 

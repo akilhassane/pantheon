@@ -17,6 +17,7 @@ build/
 # Workspace and tools directories
 workspace/*.txt
 workspace/*.log
+workspace/*.cookie*
 tools/*
 
 # User-specific configs
@@ -25,3 +26,16 @@ claude_desktop_config.json
 
 # Backup files
 *.backup
+
+# Binaries and executables
+*.exe
+*.dll
+*.so
+*.dylib
+
+# n8n workflow exports in root
+workflow*.json
+
+# Temporary files
+*.tmp
+*.temp

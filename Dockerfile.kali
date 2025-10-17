@@ -2,59 +2,81 @@
 FROM kalilinux/kali-rolling:latest
 
 # Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV LANG=en_US.UTF-8
-ENV TERM=xterm-256color
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    TERM=xterm-256color \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Update and upgrade
-RUN apt-get update && apt-get upgrade -y
+# Update and upgrade system
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install essential tools and utilities
-RUN apt-get install -y \
+# Install essential tools and utilities in a single layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     # Basic utilities
-    wget curl git vim nano sudo zsh \
+    wget curl git vim nano sudo bash bash-completion \
     # Network tools
     net-tools iputils-ping iproute2 dnsutils \
+    # SSH server for remote command execution
+    openssh-server \
     # Kali metapackages (common tools)
     kali-tools-top10 \
-    # Additional useful tools
+    # Additional pentesting tools
     nmap masscan nikto sqlmap metasploit-framework \
     dirb gobuster hydra john hashcat \
-    wireshark tcpdump netcat-traditional \
+    wireshark-common tcpdump netcat-traditional \
     exploitdb \
+    enum4linux smbclient \
     # Python and development tools
     python3 python3-pip python3-venv \
+    python3-impacket python3-requests python3-bs4 \
     # Text processing
     jq \
+    # DNS and network enumeration
+    dnsutils whois \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install Python packages via apt (more stable in Kali)
-RUN apt-get update && apt-get install -y \
-    python3-impacket \
-    python3-requests \
-    python3-bs4 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Configure SSH server
+RUN mkdir -p /run/sshd && \
+    # Enable password authentication
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    # Enable root login (we'll use pentester user though)
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    # Configure SSH to listen on custom port (will be set via environment variable)
+    sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config
 
 # Create a non-root user for pentesting
-RUN useradd -m -s /bin/zsh -G sudo pentester && \
+RUN useradd -m -s /bin/bash -G sudo pentester && \
     echo "pentester:pentester" | chpasswd && \
-    echo "pentester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    echo "pentester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    # Ensure sudo group exists
+    groupadd -f sudo
 
-# Create workspace directory
-RUN mkdir -p /workspace && \
-    chown -R pentester:pentester /workspace
+# Create workspace and tools directories
+RUN mkdir -p /workspace /tools && \
+    chown -R pentester:pentester /workspace /tools && \
+    chmod 755 /workspace /tools
 
 # Set working directory
 WORKDIR /workspace
 
-# Switch to pentester user
+# Switch to pentester user (commands run via docker exec will use this user by default)
 USER pentester
 
-# Set up a nice shell prompt
-RUN echo 'export PS1="\[\e[1;32m\]kali@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]$ "' >> ~/.zshrc
+# Set up bash environment with nice prompt
+RUN echo 'export PS1="\[\e[1;32m\]kali@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]$ "' >> ~/.bashrc && \
+    echo 'alias ll="ls -lah"' >> ~/.bashrc && \
+    echo 'alias nmap-quick="nmap -sV -sC"' >> ~/.bashrc && \
+    echo 'alias nmap-full="nmap -sV -sC -p-"' >> ~/.bashrc
 
-# Default command
-CMD ["/bin/zsh"]
+# Health check to ensure container is responsive
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD bash -c "echo 'Container is healthy'" || exit 1
+
+# Start SSH server and keep container running
+CMD ["/bin/bash", "-c", "sudo /usr/sbin/sshd && tail -f /dev/null"]
 

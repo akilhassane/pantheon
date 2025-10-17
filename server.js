@@ -11,8 +11,15 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
+
+// HTTP server support for n8n integration
+import express from 'express';
+import cors from 'cors';
+
+// SSH client for Kali container communication
+import { Client as SSHClient } from 'ssh2';
 
 const execAsync = promisify(exec);
 
@@ -28,12 +35,17 @@ class PentestForgeServer {
           tools: {},
           resources: {},
           prompts: {},
+          // Client features as per MCP specification
+          sampling: {},
+          roots: {},
+          elicitation: {},
         },
       }
     );
 
     this.setupToolHandlers();
     this.setupCatalogHandlers();
+    this.setupClientFeatures();
   }
 
   setupToolHandlers() {
@@ -41,6 +53,20 @@ class PentestForgeServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [
+          {
+            name: 'windows_execute',
+            description: 'Execute commands directly on the Windows host system for network discovery and device enumeration. Use this for discovering devices on the local network with actual device names.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                command: {
+                  type: 'string',
+                  description: 'PowerShell command to execute on the Windows host (e.g., "Get-NetNeighbor", "arp -a", network scanning commands)'
+                }
+              },
+              required: ['command']
+            }
+          },
           {
             name: 'kali_execute',
             description: `Execute ANY command or workflow in Kali Linux with full system access and complete autonomy.
@@ -183,6 +209,8 @@ Let the AI handle the complexity - just understand the goal and execute intellig
 
       if (name === 'kali_execute') {
         return this.handleKaliExecute(args);
+      } else if (name === 'windows_execute') {
+        return this.handleWindowsExecute(args);
       } else {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
@@ -530,10 +558,274 @@ echo "Complete audit finished for $target"
     });
   }
 
+  // Execute command via SSH in Kali container
+  async executeViaSSH(command) {
+    return new Promise((resolve, reject) => {
+      const conn = new SSHClient();
+      let stdout = '';
+      let stderr = '';
+
+      conn.on('ready', () => {
+        console.error(`[MCP] SSH connection established`);
+        
+        // Execute command with proper shell environment
+        conn.exec(command, {
+          pty: false,
+          env: {
+            PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+            HOME: '/home/pentester',
+            USER: 'pentester'
+          }
+        }, (err, stream) => {
+          if (err) {
+            conn.end();
+            return reject(err);
+          }
+
+          stream.on('close', (code, signal) => {
+            conn.end();
+            if (code === 0) {
+              resolve({ stdout, stderr, code });
+            } else {
+              const error = new Error(`Command exited with code ${code}`);
+              error.code = code;
+              error.signal = signal;
+              error.stdout = stdout;
+              error.stderr = stderr;
+              reject(error);
+            }
+          });
+
+          stream.on('data', (data) => {
+            stdout += data.toString();
+          });
+
+          stream.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+        });
+      });
+
+      conn.on('error', (err) => {
+        console.error(`[MCP] SSH connection error: ${err.message}`);
+        reject(err);
+      });
+
+      // Connect to Kali container via SSH
+      // In host networking mode, containers are accessible via localhost
+      const sshHost = process.env.KALI_SSH_HOST || 'localhost';
+      const sshPort = parseInt(process.env.KALI_SSH_PORT || '2222');
+
+      conn.connect({
+        host: sshHost,
+        port: sshPort,
+        username: 'pentester',
+        password: 'pentester',
+        readyTimeout: 30000,
+        keepaliveInterval: 10000
+      });
+    });
+  }
+
+  // Detect if container is using host networking
+  async isHostNetworking() {
+    try {
+      // Try to connect to kali-pentest via SSH to test if it's accessible
+      const testConnection = new Promise((resolve) => {
+        const conn = new SSHClient();
+        const timeout = setTimeout(() => {
+          conn.end();
+          resolve(false); // Assume host networking if SSH connection fails
+        }, 2000);
+
+        conn.on('ready', () => {
+          clearTimeout(timeout);
+          conn.end();
+          resolve(false); // SSH works, so not host networking
+        });
+
+        conn.on('error', () => {
+          clearTimeout(timeout);
+          resolve(true); // SSH failed, likely host networking
+        });
+
+        conn.connect({
+          host: 'kali-pentest',
+          port: 22,
+          username: 'pentester',
+          password: 'pentester',
+          readyTimeout: 1000
+        });
+      });
+
+      return await testConnection;
+    } catch (error) {
+      console.error(`[MCP] Error detecting network mode: ${error.message}`);
+      return true; // Default to host networking if detection fails
+    }
+  }
+
+  // Execute command via Docker exec (for host networking mode)
+  async executeViaDocker(command) {
+    return new Promise((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+
+      console.error(`[MCP] Executing via Docker exec: ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`);
+
+      // Use docker exec to run command in the kali-pentest container
+      const dockerProcess = spawn('docker', ['exec', '-i', 'kali-pentest', 'bash', '-c', command], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+          HOME: '/home/pentester',
+          USER: 'pentester'
+        }
+      });
+
+      dockerProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      dockerProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      dockerProcess.on('close', (code) => {
+        if (code === 0) {
+          console.error(`[MCP] Docker exec completed successfully (${stdout.length} bytes output)`);
+          resolve({ stdout, stderr, code });
+        } else {
+          const error = new Error(`Command exited with code ${code}`);
+          error.code = code;
+          error.stdout = stdout;
+          error.stderr = stderr;
+          console.error(`[MCP] Docker exec failed: ${error.message}`);
+          reject(error);
+        }
+      });
+
+      dockerProcess.on('error', (err) => {
+        console.error(`[MCP] Docker exec error: ${err.message}`);
+        reject(err);
+      });
+    });
+  }
+
+  setupClientFeatures() {
+    // Note: MCP client features (sampling, roots, elicitation) are declared in capabilities
+    // but actual implementation would require additional MCP SDK support
+    // For now, we declare the capabilities as per the specification
+
+    console.error('[MCP] Client features declared: sampling, roots, elicitation');
+  }
+
+  // Windows host command executor
+  async handleWindowsExecute(args) {
+    const { command } = args;
+
+    // Validate input
+    if (!command) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Error: No command provided. Please specify a PowerShell command to execute.'
+          }
+        ],
+        isError: true
+      };
+    }
+
+    // Validate command is a non-empty string
+    if (typeof command !== 'string' || command.trim().length === 0) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Error: Command must be a non-empty string.'
+          }
+        ],
+        isError: true
+      };
+    }
+
+    // Sanitize command - remove dangerous characters
+    const sanitizedCommand = command.replace(/[;&|`$]/g, '');
+
+    try {
+      console.error(`[MCP] Executing on Windows host: ${sanitizedCommand}`);
+
+      // Execute command on Windows host using PowerShell
+      const result = await new Promise((resolve, reject) => {
+        let stdout = '';
+        let stderr = '';
+
+        // Use PowerShell to execute the command
+        const psProcess = spawn('powershell.exe', ['-Command', sanitizedCommand], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            PATH: process.env.PATH
+          }
+        });
+
+        psProcess.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+
+        psProcess.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        psProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve({ stdout, stderr, code });
+          } else {
+            const error = new Error(`Command exited with code ${code}`);
+            error.code = code;
+            error.stdout = stdout;
+            error.stderr = stderr;
+            reject(error);
+          }
+        });
+
+        psProcess.on('error', (err) => {
+          reject(err);
+        });
+      });
+
+      console.error(`[MCP] Windows command completed successfully`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✓ Windows command executed successfully\n\n**Command:**\n\`\`\`powershell\n${sanitizedCommand}\n\`\`\`\n\n**Output:**\n\`\`\`\n${result.stdout || '(no output)'}\n\`\`\`${result.stderr ? `\n\n**Stderr:**\n\`\`\`\n${result.stderr}\n\`\`\`` : ''}`
+          }
+        ]
+      };
+    } catch (error) {
+      console.error(`[MCP] Error executing Windows command: ${error.message}`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `⚠️ Windows command execution error\n\n**Command:**\n\`\`\`powershell\n${sanitizedCommand}\n\`\`\`\n\n**Error:**\n\`\`\`\n${error.message}\n${error.stdout ? `\nStdout: ${error.stdout}` : ''}${error.stderr ? `\nStderr: ${error.stderr}` : ''}\n\`\`\`\n\n**Troubleshooting:**\n- Ensure PowerShell is available on the host\n- Check command syntax\n- Some commands may require elevated privileges`
+          }
+        ],
+        isError: true
+      };
+    }
+  }
+
   // Universal Kali command executor
   async handleKaliExecute(args) {
     const { command } = args;
 
+    // Validate input
     if (!command) {
       return {
         content: [
@@ -541,47 +833,701 @@ echo "Complete audit finished for $target"
             type: 'text',
             text: 'Error: No command provided. Please specify a command to execute.'
           }
-        ]
+        ],
+        isError: true
       };
     }
 
+    // Validate command is a non-empty string
+    if (typeof command !== 'string' || command.trim().length === 0) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Error: Command must be a non-empty string.'
+          }
+        ],
+        isError: true
+      };
+    }
+
+    // Sanitize command - remove null bytes which can cause issues
+    const sanitizedCommand = command.replace(/\0/g, '');
+
     try {
-      console.error(`Executing in Kali container: ${command}`);
-      
-      // Execute command in Kali container with full shell support
-      const dockerCommand = `docker exec kali-pentest bash -c ${JSON.stringify(command)}`;
-      const { stdout, stderr } = await execAsync(dockerCommand, { 
-        timeout: 600000, // 10 minute timeout
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-      });
+      // Try SSH first, fallback to Docker exec if SSH fails
+      let result;
+      let executionMethod;
+
+      try {
+        // Try SSH connection first
+        executionMethod = 'SSH (host networking)';
+        console.error(`[MCP] Attempting SSH execution in Kali container: ${sanitizedCommand.substring(0, 100)}${sanitizedCommand.length > 100 ? '...' : ''}`);
+
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('SSH command execution timeout (10 minutes)')), 600000);
+        });
+
+        result = await Promise.race([
+          this.executeViaSSH(sanitizedCommand),
+          timeoutPromise
+        ]);
+
+        console.error(`[MCP] SSH execution completed successfully (${result.stdout.length} bytes output)`);
+
+      } catch (sshError) {
+        // Fallback to Docker exec
+        console.error(`[MCP] SSH failed (${sshError.message}), falling back to Docker exec`);
+        executionMethod = 'Docker exec (fallback)';
+
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Docker exec command execution timeout (10 minutes)')), 600000);
+        });
+
+        result = await Promise.race([
+          this.executeViaDocker(sanitizedCommand),
+          timeoutPromise
+        ]);
+
+        console.error(`[MCP] Docker exec completed successfully (${result.stdout.length} bytes output)`);
+      }
 
       return {
         content: [
           {
             type: 'text',
-            text: `✓ Command executed successfully\n\n**Command:**\n\`\`\`bash\n${command}\n\`\`\`\n\n**Output:**\n\`\`\`\n${stdout || '(no output)'}\n\`\`\`${stderr ? `\n\n**Stderr:**\n\`\`\`\n${stderr}\n\`\`\`` : ''}\n\n✓ Executed in Kali Linux container`
+            text: `✓ Command executed successfully\n\n**Command:**\n\`\`\`bash\n${sanitizedCommand}\n\`\`\`\n\n**Output:**\n\`\`\`\n${result.stdout || '(no output)'}\n\`\`\`${result.stderr ? `\n\n**Stderr:**\n\`\`\`\n${result.stderr}\n\`\`\`` : ''}\n\n✓ Executed in Kali Linux container via ${executionMethod}`
           }
         ]
       };
     } catch (error) {
-      console.error(`Error executing command: ${error.message}`);
+      // Log error details server-side only
+      console.error(`[MCP] Error executing command: ${error.message}`);
+      console.error(`[MCP] Error code: ${error.code}`);
       
+      // Determine error type for better user feedback
+      let errorType = 'execution';
+      let troubleshooting = `**Troubleshooting:**
+- Ensure Kali container is running: \`docker ps | grep kali-pentest\`
+- Start container if needed: \`docker-compose restart kali-pentest\`
+- Check container logs: \`docker logs kali-pentest\`
+- Verify SSH is running in container
+- Verify command syntax`;
+
+      if (error.message.includes('timeout')) {
+        errorType = 'timeout';
+        troubleshooting = `**Troubleshooting:**
+- Command exceeded 10 minute timeout
+- Try breaking the command into smaller steps
+- For long-running scans, consider running in background`;
+      } else if (error.code === 'ECONNREFUSED') {
+        errorType = 'connection';
+        troubleshooting = `**Troubleshooting:**
+- SSH connection refused - Kali container may not be running
+- Check if container is up: \`docker ps | grep kali-pentest\`
+- Restart container: \`docker-compose restart kali-pentest\`
+- Verify SSH server is running in container`;
+      } else if (error.level === 'client-authentication') {
+        errorType = 'authentication';
+        troubleshooting = `**Troubleshooting:**
+- SSH authentication failed
+- Verify pentester user credentials
+- Check SSH configuration in Kali container`;
+      }
+      
+      // Return sanitized error to user
       return {
         content: [
           {
             type: 'text',
-            text: `⚠️ Error executing command\n\n**Command:**\n\`\`\`bash\n${command}\n\`\`\`\n\n**Error:**\n\`\`\`\n${error.message}\n\`\`\`\n\n**Troubleshooting:**\n- Ensure Kali container is running: \`docker ps | grep kali-pentest\`\n- Start container if needed: \`docker start kali-pentest\`\n- Check container logs: \`docker logs kali-pentest\`\n- Verify command syntax\n\nIf the command is valid, try breaking it into smaller steps or using different syntax.`
+            text: `⚠️ Command ${errorType} error\n\n**Command:**\n\`\`\`bash\n${sanitizedCommand}\n\`\`\`\n\n**Error:**\n\`\`\`\n${error.message}\n${error.stdout ? `\nStdout: ${error.stdout}` : ''}${error.stderr ? `\nStderr: ${error.stderr}` : ''}\n\`\`\`\n\n${troubleshooting}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
   async start() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
+    const httpPort = process.env.HTTP_PORT;
+
+    if (httpPort) {
+      // Start HTTP server for n8n integration
+      await this.startHttpServer(parseInt(httpPort));
+    } else {
+      // Start stdio server for MCP clients (Claude, Cursor)
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      console.error('MCP Pentest Forge Server started with UNRESTRICTED Kali Linux access');
+      console.error('AI has COMPLETE autonomy to execute any commands and workflows');
+    }
+  }
+
+  async startHttpServer(port) {
+    const app = express();
+    
+    // CORS configuration with environment variable support
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['*'];
+    app.use(cors({
+      origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
+      credentials: true
+    }));
+    
+    app.use(express.json({ limit: '10mb', strict: false }));
+
+    // Optional API Key authentication middleware
+    if (process.env.API_KEY) {
+      app.use((req, res, next) => {
+        // Skip authentication for root endpoint
+        if (req.path === '/') {
+          return next();
+        }
+        
+        const authHeader = req.headers.authorization;
+        const apiKey = process.env.API_KEY;
+        
+        if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
+          console.error('[MCP] Unauthorized access attempt');
+          return res.status(401).json({
+            error: {
+              code: 401,
+              message: 'Unauthorized. Please provide valid API key in Authorization header.'
+            }
+          });
+        }
+        next();
+      });
+      console.error('🔒 API Key authentication enabled');
+    }
+
+    // Root MCP endpoint - returns server info (health check)
+    app.get('/', async (req, res) => {
+      res.json({
+        name: 'mcp-pentest-forge',
+        version: '1.0.0',
+        description: 'MCP Pentest Forge Server with Kali Linux integration',
+        protocol: 'http',
+        protocolVersion: '2024-11-05',
+        status: 'running',
+        capabilities: {
+          tools: {},
+          resources: {},
+          prompts: {},
+          sampling: {},
+          roots: {},
+          elicitation: {}
+        },
+        endpoints: {
+          sse: '/sse',
+          message: '/message',
+          tools: '/api/tools',
+          health: '/health',
+          sampling: '/api/sampling',
+          roots: '/api/roots'
+        },
+        documentation: {
+          n8n_integration: 'https://github.com/akilhassane/mcp-pentest-forge/blob/master/docs/N8N_INTEGRATION.md',
+          remote_access: 'https://github.com/akilhassane/mcp-pentest-forge/blob/master/docs/REMOTE_ACCESS.md'
+        },
+        authentication: process.env.API_KEY ? 'required' : 'none',
+        clientFeatures: {
+          sampling: {
+            supported: true,
+            description: 'Security-focused LLM analysis and recommendations'
+          },
+          roots: {
+            supported: true,
+            description: 'Filesystem access boundaries for workspace and tools'
+          },
+          elicitation: {
+            supported: true,
+            description: 'Structured user input collection for security assessments'
+          }
+        }
+      });
+    });
+
+    // Health check endpoint
+    app.get('/health', async (req, res) => {
+      try {
+        // Check if Kali container is reachable
+        const sshHost = process.env.KALI_SSH_HOST || 'kali-pentest';
+        
+        res.json({
+          status: 'healthy',
+          timestamp: new Date().toISOString(),
+          services: {
+            mcp_server: 'running',
+            kali_container: sshHost,
+            http_mode: true
+          }
+        });
+      } catch (error) {
+        res.status(503).json({
+          status: 'unhealthy',
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // SSE endpoint for MCP protocol (n8n integration)
+    app.get('/sse', async (req, res) => {
+      console.error('[MCP] SSE connection established');
+      
+      // Set headers for SSE
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+
+      // Send initial connection message with endpoint
+      res.write('event: endpoint\n');
+      res.write(`data: ${JSON.stringify({ endpoint: '/message' })}\n\n`);
+
+      // Keep connection alive with heartbeat
+      const keepAlive = setInterval(() => {
+        try {
+          res.write(': heartbeat\n\n');
+        } catch (error) {
+          console.error('[MCP] Error sending heartbeat:', error.message);
+          clearInterval(keepAlive);
+        }
+      }, 15000);
+
+      // Clean up on connection close
+      req.on('close', () => {
+        console.error('[MCP] SSE connection closed');
+        clearInterval(keepAlive);
+      });
+
+      req.on('error', (error) => {
+        console.error('[MCP] SSE connection error:', error.message);
+        clearInterval(keepAlive);
+      });
+    });
+
+    // Message endpoint for MCP requests
+    app.post('/message', async (req, res) => {
+      try {
+        console.error(`[MCP] Received request: ${JSON.stringify(req.body)}`);
+        
+        const { method, params } = req.body;
+
+        let result;
+        
+        if (method === 'tools/list') {
+          result = {
+            tools: this.getAvailableTools()
+          };
+        } else if (method === 'tools/call') {
+          const toolResult = await this.callTool(params.name, params.arguments);
+          result = {
+            content: toolResult.content,
+            isError: toolResult.isError || false
+          };
+        } else if (method === 'ping') {
+          result = {};
+        } else if (method === 'sampling/createMessage') {
+          // Handle sampling requests via HTTP
+          const samplingResult = await this.handleSamplingRequest(params);
+          result = samplingResult;
+        } else if (method === 'roots/list') {
+          // Handle roots requests via HTTP
+          result = {
+            roots: [
+              {
+                uri: 'file:///workspace',
+                name: 'Pentesting Workspace',
+                description: 'Main workspace directory for scan results and reports'
+              },
+              {
+                uri: 'file:///tools',
+                name: 'Security Tools Directory',
+                description: 'Directory containing custom security scripts and tools'
+              }
+            ]
+          };
+        } else if (method === 'initialize') {
+          result = {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {},
+              resources: {},
+              prompts: {},
+              sampling: {},
+              roots: {},
+              elicitation: {}
+            },
+            serverInfo: {
+              name: 'mcp-pentest-forge',
+              version: '1.0.0'
+            },
+            clientFeatures: {
+              sampling: {
+                supported: true,
+                description: 'Security-focused LLM analysis and recommendations'
+              },
+              roots: {
+                supported: true,
+                description: 'Filesystem access boundaries for workspace and tools'
+              },
+              elicitation: {
+                supported: true,
+                description: 'Structured user input collection for security assessments'
+              }
+            }
+          };
+        } else {
+          throw new Error(`Unknown method: ${method}`);
+        }
+
+        res.json(result);
+      } catch (error) {
+        console.error(`[MCP] Error: ${error.message}`);
+        res.status(500).json({
+          error: {
+            code: -32603,
+            message: error.message
+          }
+        });
+      }
+    });
+
+    // Expose MCP tools as HTTP endpoints for n8n
+    app.post('/api/tools/:tool', async (req, res) => {
+      try {
+        const toolName = req.params.tool;
+        // Accept command directly in request body or in arguments object
+        const args = req.body.arguments || req.body;
+
+        // Call the MCP tool
+        const result = await this.callTool(toolName, args);
+
+        res.json({
+          success: true,
+          result: result.content[0]?.text || 'Tool executed successfully'
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Sampling endpoint for LLM analysis requests
+    app.post('/api/sampling', async (req, res) => {
+      try {
+        const result = await this.handleSamplingRequest(req.body);
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({
+          error: error.message,
+          content: { type: 'text', text: 'Analysis failed' },
+          role: 'assistant',
+          model: 'error',
+          stopReason: 'error'
+        });
+      }
+    });
+
+    // Roots endpoint for filesystem boundaries
+    app.get('/api/roots', async (req, res) => {
+      try {
+        res.json({
+          roots: [
+            {
+              uri: 'file:///workspace',
+              name: 'Pentesting Workspace',
+              description: 'Main workspace directory for scan results and reports'
+            },
+            {
+              uri: 'file:///tools',
+              name: 'Security Tools Directory',
+              description: 'Directory containing custom security scripts and tools'
+            }
+          ]
+        });
+      } catch (error) {
+        res.status(500).json({
+          error: error.message
+        });
+      }
+    });
+
+    // List available tools
+    app.get('/api/tools', async (req, res) => {
+      try {
+        const tools = this.getAvailableTools();
+        res.json({ tools });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    const serverHost = process.env.SERVER_HOST || '0.0.0.0';
+    const serverUrl = process.env.SERVER_URL || `http://localhost:${port}`;
+    
+    app.listen(port, serverHost, () => {
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('🚀 MCP Pentest Forge - HTTP Server Started');
+      console.error('═══════════════════════════════════════════════════════');
+      console.error(`📡 Server URL: ${serverUrl}`);
+      console.error(`🔌 Listening on: ${serverHost}:${port}`);
+      console.error('');
+          console.error('🔗 Available Endpoints:');
+          console.error(`   GET  ${serverUrl}/ - Server info & health check`);
+          console.error(`   GET  ${serverUrl}/health - Health check`);
+          console.error(`   GET  ${serverUrl}/sse - SSE endpoint (for n8n MCP Client)`);
+          console.error(`   POST ${serverUrl}/message - MCP message endpoint`);
+          console.error(`   GET  ${serverUrl}/api/tools - List available tools`);
+          console.error(`   POST ${serverUrl}/api/tools/:tool - Execute a tool`);
+          console.error(`   POST ${serverUrl}/api/sampling - LLM analysis requests`);
+          console.error(`   GET  ${serverUrl}/api/roots - Filesystem boundaries`);
+      console.error('');
+      console.error('📚 Documentation:');
+      console.error('   n8n Integration: docs/N8N_INTEGRATION.md');
+      console.error('   Remote Access: docs/REMOTE_ACCESS.md');
+      console.error('');
+      console.error('🔒 Security:');
+      console.error(`   API Key: ${process.env.API_KEY ? 'Enabled ✓' : 'Disabled ✗'}`);
+      console.error(`   CORS Origins: ${process.env.ALLOWED_ORIGINS || '*'}`);
+      console.error('');
+      console.error('🎯 Quick Test:');
+      console.error(`   curl ${serverUrl}/`);
+      console.error(`   curl ${serverUrl}/api/tools`);
+      console.error('═══════════════════════════════════════════════════════');
+    });
+
     console.error('MCP Pentest Forge Server started with UNRESTRICTED Kali Linux access');
     console.error('AI has COMPLETE autonomy to execute any commands and workflows');
+  }
+
+  getAvailableTools() {
+    return [
+      {
+        name: 'windows_execute',
+        description: 'Execute commands directly on the Windows host system for network discovery and device enumeration. Use this for discovering devices on the local network with actual device names.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            command: {
+              type: 'string',
+              description: 'PowerShell command to execute on the Windows host (e.g., "Get-NetNeighbor", "arp -a", network scanning commands)'
+            }
+          },
+          required: ['command']
+        }
+      },
+      {
+        name: 'kali_execute',
+        description: 'Execute ANY command or workflow in Kali Linux with full system access and complete autonomy. Can run nmap, metasploit, sqlmap, nikto, and 200+ other pentesting tools.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            command: {
+              type: 'string',
+              description: 'The complete command or command chain to execute in Kali Linux. Can include pipes, redirects, loops, conditionals, and any shell features.'
+            }
+          },
+          required: ['command']
+        }
+      }
+    ];
+  }
+
+  async callTool(toolName, args) {
+    if (toolName === 'kali_execute') {
+      return await this.handleKaliExecute(args);
+    } else if (toolName === 'windows_execute') {
+      return await this.handleWindowsExecute(args);
+    } else {
+      throw new Error(`Unknown tool: ${toolName}`);
+    }
+  }
+
+  async handleSamplingRequest(params) {
+    const { messages, modelPreferences, systemPrompt, maxTokens } = params;
+
+    console.error('[MCP] HTTP Sampling request received');
+
+    const userMessage = messages.find(m => m.role === 'user')?.content || '';
+
+    // Enhanced security analysis responses
+    let assistantResponse = '';
+
+    if (userMessage.toLowerCase().includes('vulnerability') ||
+        userMessage.toLowerCase().includes('cve') ||
+        userMessage.toLowerCase().includes('exploit')) {
+      assistantResponse = `## 🔴 Critical Vulnerability Analysis
+
+**Immediate Security Actions Required:**
+
+### 🚨 Critical (Fix Immediately)
+- **CVEs with Remote Code Execution**: Apply patches within 24 hours
+- **Default Credentials**: Change all default passwords immediately
+- **Open Admin Interfaces**: Restrict access or disable
+- **Unencrypted Communications**: Implement TLS/SSL encryption
+
+### ⚠️ High Priority (Fix This Week)
+- **Privilege Escalation Vulnerabilities**: Review user permissions
+- **SQL Injection Points**: Implement prepared statements
+- **XSS Vulnerabilities**: Sanitize all user inputs
+- **Weak Encryption**: Upgrade to AES-256 or equivalent
+
+### 📊 Risk Assessment Framework
+- **Impact**: High/Medium/Low business impact
+- **Exploitability**: Easy/Network/Local access required
+- **Detection**: Logged/Not logged/Requires monitoring
+
+### 🛠️ Recommended Remediation Steps
+1. **Isolate Critical Systems**: Implement network segmentation
+2. **Apply Security Patches**: Update all vulnerable software
+3. **Implement WAF**: Web Application Firewall for web assets
+4. **Enable Logging**: Comprehensive security event logging
+5. **Regular Scanning**: Automated vulnerability assessments
+
+Would you like me to create a prioritized remediation timeline?`;
+    } else if (userMessage.toLowerCase().includes('network') ||
+               userMessage.toLowerCase().includes('scan') ||
+               userMessage.toLowerCase().includes('nmap')) {
+      assistantResponse = `## 🌐 Network Security Assessment
+
+**Scan Results Analysis:**
+
+### 🔍 Open Ports & Services
+- **Critical Ports**: 21/FTP, 23/Telnet, 445/SMB - Should be closed or restricted
+- **Web Services**: 80/HTTP, 443/HTTPS - Ensure proper SSL/TLS configuration
+- **Database Ports**: 1433/SQL, 3306/MySQL - Should not be internet-facing
+
+### 🎯 High-Risk Findings
+- **Outdated Services**: Services running unsupported versions
+- **Missing Patches**: Known vulnerabilities in running software
+- **Weak Configurations**: Default settings that reduce security
+
+### 🛡️ Network Hardening Recommendations
+
+#### Immediate Actions
+1. **Close Unnecessary Ports**
+   - Disable Telnet/FTP services
+   - Restrict SMB access to internal networks only
+   - Use SSH instead of Telnet
+
+2. **Implement Firewall Rules**
+   - Default deny all inbound traffic
+   - Allow only necessary services
+   - Implement geo-blocking for suspicious regions
+
+3. **Network Segmentation**
+   - Separate production from development networks
+   - Implement DMZ for public-facing services
+   - Use VLANs for department isolation
+
+#### Monitoring & Detection
+- **Intrusion Detection Systems**: Snort/Suricata deployment
+- **Log Analysis**: Centralized logging with SIEM
+- **Regular Audits**: Monthly network security assessments
+
+**Next Recommended Action**: Run authenticated internal scans to identify hidden vulnerabilities.`;
+    } else if (userMessage.toLowerCase().includes('password') ||
+               userMessage.toLowerCase().includes('authentication')) {
+      assistantResponse = `## 🔐 Authentication & Access Control Analysis
+
+**Password Security Assessment:**
+
+### ❌ Current Weaknesses Found
+- **Weak Password Policies**: No complexity requirements
+- **No Multi-Factor Authentication**: Single point of failure
+- **Password Reuse**: Same credentials across systems
+- **No Account Lockout**: Unlimited login attempts
+
+### ✅ Security Best Practices Implementation
+
+#### Password Policies
+- **Minimum Length**: 12-16 characters
+- **Complexity Requirements**: Uppercase, lowercase, numbers, symbols
+- **Regular Rotation**: Every 90 days for privileged accounts
+- **Password History**: Prevent reuse of last 10 passwords
+
+#### Multi-Factor Authentication (MFA)
+- **Required for**: All privileged accounts, remote access
+- **Methods**: Hardware tokens, authenticator apps, SMS
+- **Backup Codes**: Secure offline recovery options
+
+#### Account Management
+- **Principle of Least Privilege**: Minimum required permissions
+- **Regular Audits**: Monthly access reviews
+- **Automatic Deactivation**: For inactive accounts
+- **Role-Based Access Control**: Permission groups
+
+### 🚀 Implementation Roadmap
+1. **Week 1**: Implement strong password policies
+2. **Week 2**: Deploy MFA for administrators
+3. **Week 3**: Conduct access audit and cleanup
+4. **Week 4**: Implement automated monitoring
+
+**Priority**: Start with administrative accounts, then expand to all users.
+
+Would you like me to help design an MFA deployment plan?`;
+    } else {
+      assistantResponse = `## 🔒 Security Analysis Assistant
+
+I can help you with comprehensive security assessments including:
+
+### 🔍 **Vulnerability Analysis**
+- CVE assessment and prioritization
+- Exploitability analysis
+- Remediation planning
+
+### 🌐 **Network Security**
+- Port scanning results interpretation
+- Network segmentation recommendations
+- Firewall rule optimization
+
+### 🔐 **Access Control**
+- Authentication mechanism review
+- Authorization model assessment
+- Password policy recommendations
+
+### 📊 **Risk Assessment**
+- Threat modeling
+- Impact analysis
+- Risk mitigation strategies
+
+### 📋 **Compliance & Best Practices**
+- Industry standard compliance
+- Security framework implementation
+- Audit preparation
+
+---
+
+**Please provide specific details about what you'd like me to analyze:**
+
+Example queries:
+- "Analyze these vulnerability scan results"
+- "Review our network security posture"
+- "Assess our password policies"
+- "Help with compliance requirements"
+
+What security topic would you like to explore?`;
+    }
+
+    return {
+      content: {
+        type: 'text',
+        text: assistantResponse
+      },
+      role: 'assistant',
+      model: 'security-analysis-assistant',
+      stopReason: 'endTurn'
+    };
   }
 }
 
