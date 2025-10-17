@@ -1,0 +1,440 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2992,
+        -96
+      ],
+      "id": "9d0b5274-d329-44ad-8d6e-0ddee887bfcd",
+      "name": "When chat message received",
+      "webhookId": "abd7c3e7-6916-4167-b51f-b73b12ddfbc3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize workflow state\nconst chatInput = $input.first().json.chatInput;\n\nreturn {\n  json: {\n    chatInput: chatInput,\n    originalQuery: chatInput,\n    iteration: 0,\n    maxIterations: 5,\n    commandHistory: [],\n    shouldContinue: true,\n    finalAnswer: null\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2768,
+        -96
+      ],
+      "id": "790e9b7e-8347-49ef-8304-755f003f9093",
+      "name": "Initialize State"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -2496,
+        96
+      ],
+      "id": "0bb122da-ff85-4c83-8517-01d01e294428",
+      "name": "OpenAI Chat Model - Command",
+      "credentials": {
+        "openAiApi": {
+          "id": "lxJpY1OiuVSf1yri",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Original User Query: {{ $('When chat message received').item.json.chatInput }}\n\nCurrent Iteration: {{ $json.iteration }}/{{ $json.maxIterations }}\n\n{% if $json.commandHistory.length > 0 %}\nPrevious Commands Executed:\n{% for cmd in $json.commandHistory %}\n---\nCommand: \nOutput: \nStatus: \n---\n{% endfor %}\n{% else %}\nNo previous commands executed yet.\n{% endif %}\n\nBased on the user's query and any previous results, generate the NEXT single command needed to accomplish the goal. Output ONLY the command, nothing else.",
+        "options": {
+          "systemMessage": "You are a Kali Linux security expert. Generate ONE executable shell command at a time to accomplish the user's goal. Output ONLY the raw command with no explanations, quotes, or formatting. Examples:\n- whoami\n- hostname -I\n- cat /etc/passwd\n- ls -la /tmp\n\nDo not include prefixes like 'COMMAND:' or any markdown formatting."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -2496,
+        -96
+      ],
+      "id": "fd5cff65-bea7-45d7-9c7e-89f448409ecb",
+      "name": "Command Generator Agent"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://unprescribed-declaratively-emerie.ngrok-free.dev/api/tools/kali_execute",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"arguments\": {\n    \"command\": \"{{ $json.output.replace('COMMAND:', '').replace(/[\\\"\\`]/g, '').trim() }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2096,
+        -96
+      ],
+      "id": "0de9438a-7bae-4e8f-9641-08f666edcbd1",
+      "name": "Execute Command"
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.result }}",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "command_output",
+              "description": "The raw output from the executed command"
+            },
+            {
+              "name": "execution_status",
+              "description": "Success or failure status"
+            },
+            {
+              "name": "key_findings",
+              "description": "Important information discovered from the output"
+            }
+          ]
+        },
+        "options": {
+          "systemPromptTemplate": "Extract and organize the command output. Return clean, readable text without JSON formatting or special symbols. Replace \\n with actual newlines."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        -1840,
+        -96
+      ],
+      "id": "24e10f3b-e4af-4c2f-a83d-17fe8ecbaaad",
+      "name": "Extract Command Results"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1840,
+        96
+      ],
+      "id": "5555c548-0475-4957-b958-247a6b277f0a",
+      "name": "OpenAI Chat Model - Extract",
+      "credentials": {
+        "openAiApi": {
+          "id": "lxJpY1OiuVSf1yri",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Update command history and prepare for reflection\nconst currentState = $('Command Generator Agent').first().json;\nconst commandOutput = $('Command Generator Agent').first().json.output || '';\nconst extractedResult = $input.first().json;\n\n// Get the command that was executed (clean it up)\nconst command = commandOutput\n  .replace('COMMAND:', '')\n  .replace(/[\\\"\\'\\`]/g, '')\n  .trim();\n\n// Get command history from current state\nconst commandHistory = currentState.commandHistory || [];\n\n// Add new command to history\ncommandHistory.push({\n  command: command,\n  output: JSON.stringify(extractedResult.command_output || extractedResult),\n  status: extractedResult.execution_status || 'completed'\n});\n\nconst newIteration = (currentState.iteration || 0) + 1;\n\nreturn {\n  json: {\n    chatInput: currentState.chatInput || currentState.originalQuery,\n    originalQuery: currentState.originalQuery,\n    iteration: newIteration,\n    maxIterations: currentState.maxIterations || 5,\n    commandHistory: commandHistory,\n    lastResult: extractedResult,\n    shouldContinue: true,\n    finalAnswer: null\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        -96
+      ],
+      "id": "6b508c26-8b34-47f6-b7ca-c843ba79991a",
+      "name": "Update Command History"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1344,
+        96
+      ],
+      "id": "0cf91583-b353-44ca-92d7-0d3ddc336c72",
+      "name": "OpenAI Chat Model - Reflection",
+      "credentials": {
+        "openAiApi": {
+          "id": "lxJpY1OiuVSf1yri",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Original User Query: {{ $('When chat message received').item.json.chatInput }}\n\nIteration: {{ $json.iteration }}/{{ $json.maxIterations }}\n\nCommands Executed So Far:\n{% for cmd in $json.commandHistory %}\n---\nCommand: {{ $('Command Generator Agent').item.json.output }}\nResult: {{ $('Execute Command').item.json.result }}\nStatus: {{ $('Execute Command').item.json.success }}\n---\n{% endfor %}\n\nAnalyze if we have enough information to answer the user's original query.\n\nIMPORTANT: Respond with EXACTLY one of these formats:\n1. CONTINUE - if more commands are needed to fully answer the query\n2. FINAL_ANSWER: [detailed answer here] - if you have all the information needed\n\nExample for query \"whoami and IP\":\n- After whoami only: CONTINUE\n- After whoami + IP command: FINAL_ANSWER: Your username is 'root' and your IP address is 192.168.1.100",
+        "options": {
+          "systemMessage": "You are a strategic analyst. Determine if the gathered information sufficiently answers the user's query.\n\nConsider:\n- Does the command history contain ALL information requested?\n- If user asked for multiple things, have we executed commands for each?\n- Are there errors that need investigation?\n- Have we reached max iterations (then we must finish)?\n\nIMPORTANT:\n- If iteration >= maxIterations, you MUST respond with FINAL_ANSWER\n- Only say CONTINUE if truly necessary\n- When providing FINAL_ANSWER, summarize all findings clearly"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1344,
+        -96
+      ],
+      "id": "cad14612-cac0-48fd-ad8c-57bd54a274a3",
+      "name": "Reflection Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decision logic: should we continue or finish?\nconst item = $input.first().json;\nconst reflectionOutput = item.output || '';\n\nconsole.log('=== DECISION LOGIC DEBUG ===');\nconsole.log('Iteration:', item.iteration, '/', item.maxIterations);\nconsole.log('Reflection output:', reflectionOutput);\n\nlet shouldContinue = true;\nlet finalAnswer = null;\n\n// Check if we've hit max iterations - MUST stop\nif (item.iteration >= item.maxIterations) {\n  console.log('Max iterations reached - forcing stop');\n  shouldContinue = false;\n  \n  // Extract answer from reflection or generate summary\n  const answerMatch = reflectionOutput.match(/FINAL_ANSWER:\\s*(.+)/s);\n  if (answerMatch) {\n    finalAnswer = answerMatch[1].trim();\n  } else {\n    const history = item.commandHistory || [];\n    finalAnswer = `Max iterations (${item.maxIterations}) reached.\\n\\nResults:\\n\\n` + \n      history.map((cmd, idx) => `${idx + 1}. Command: ${cmd.command}\\n   Output: ${cmd.output}\\n   Status: ${cmd.status}`).join('\\n\\n');\n  }\n}\n// Check if reflection says we're done\nelse if (reflectionOutput.includes('FINAL_ANSWER:')) {\n  console.log('Reflection says FINAL_ANSWER - stopping');\n  shouldContinue = false;\n  const answerMatch = reflectionOutput.match(/FINAL_ANSWER:\\s*(.+)/s);\n  finalAnswer = answerMatch ? answerMatch[1].trim() : 'Task completed.';\n}\n// Check if reflection says continue\nelse if (reflectionOutput.includes('CONTINUE')) {\n  console.log('Reflection says CONTINUE - continuing');\n  shouldContinue = true;\n}\n// Default: if unclear, stop after a few iterations\nelse if (item.iteration >= 3) {\n  console.log('Unclear response after 3 iterations - stopping');\n  shouldContinue = false;\n  const history = item.commandHistory || [];\n  finalAnswer = 'Completed available commands:\\n\\n' + \n    history.map((cmd, idx) => `${idx + 1}. ${cmd.command}\\n   Result: ${cmd.output}`).join('\\n\\n');\n}\n\nconsole.log('Decision: shouldContinue =', shouldContinue);\nconsole.log('Final answer:', finalAnswer);\n\nreturn {\n  json: {\n    chatInput: item.chatInput,\n    originalQuery: item.originalQuery,\n    iteration: item.iteration,\n    maxIterations: item.maxIterations,\n    commandHistory: item.commandHistory,\n    shouldContinue: shouldContinue,\n    finalAnswer: finalAnswer,\n    reflectionOutput: reflectionOutput\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1088,
+        -96
+      ],
+      "id": "9e62a6ac-135d-4342-aeea-342e365e2f34",
+      "name": "Decision Logic"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.shouldContinue }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "id": "49751997-9565-439d-9544-18842a612767"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        -96
+      ],
+      "id": "6dfe846d-e055-465e-8c26-0de6bbe2a8b1",
+      "name": "Should Continue?"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.finalAnswer }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -592,
+        0
+      ],
+      "id": "c91862d0-48ff-4bc1-b605-a1d9d10e6372",
+      "name": "Return Final Answer"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass state to next iteration\nconst state = $input.first().json;\n\nconsole.log('=== LOOP BACK ===');\nconsole.log('Passing state for iteration:', state.iteration);\n\nreturn {\n  json: {\n    chatInput: state.chatInput,\n    originalQuery: state.originalQuery,\n    iteration: state.iteration,\n    maxIterations: state.maxIterations,\n    commandHistory: state.commandHistory,\n    shouldContinue: state.shouldContinue,\n    finalAnswer: null\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        -304
+      ],
+      "id": "057d46dd-8c51-44c2-825b-aae33fba80b5",
+      "name": "Loop Back"
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize State": {
+      "main": [
+        [
+          {
+            "node": "Command Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model - Command": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Command Generator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Command Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Execute Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command": {
+      "main": [
+        [
+          {
+            "node": "Extract Command Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Command Results": {
+      "main": [
+        [
+          {
+            "node": "Update Command History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model - Extract": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Command Results",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Command History": {
+      "main": [
+        [
+          {
+            "node": "Reflection Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model - Reflection": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reflection Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reflection Agent": {
+      "main": [
+        [
+          {
+            "node": "Decision Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Logic": {
+      "main": [
+        [
+          {
+            "node": "Should Continue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Continue?": {
+      "main": [
+        [
+          {
+            "node": "Loop Back",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Final Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Back": {
+      "main": [
+        [
+          {
+            "node": "Command Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "57d1eb6091df5c3dea905bb1e3b4e215daa7fa51e97f1d0b160fc290b2b7e278"
+  }
+}

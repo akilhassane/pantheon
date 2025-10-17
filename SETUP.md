@@ -1,61 +1,55 @@
-# 🚀 Complete Setup Guide - MCP Pentest Forge
+# Complete Setup Guide 🚀
 
-This comprehensive guide will walk you through setting up MCP Pentest Forge on your system. Follow the steps for your preferred integration method.
+This guide will walk you through setting up **MCP-Pentest-Forge** from scratch on any platform.
 
----
+## Table of Contents
 
-## 📋 Table of Contents
-
-1. [Prerequisites](#prerequisites)
-2. [Quick Start (Docker)](#quick-start-docker)
-3. [Claude Desktop Integration](#claude-desktop-integration)
-4. [Cursor IDE Integration](#cursor-ide-integration)
-5. [n8n Integration](#n8n-integration)
-6. [Troubleshooting](#troubleshooting)
-7. [Verification](#verification)
-
----
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration Options](#configuration-options)
+  - [Claude Desktop Setup](#claude-desktop-setup)
+  - [Cursor IDE Setup](#cursor-ide-setup)
+  - [n8n Integration](#n8n-integration)
+- [Verification](#verification)
+- [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
-
 ### Required Software
 
-✅ **Docker Desktop** (Latest version)
-- **Windows**: Download from [docker.com](https://www.docker.com/products/docker-desktop/)
-  - Enable WSL2 backend during installation
-  - Allocate at least 4GB RAM to Docker
-- **macOS**: Download from [docker.com](https://www.docker.com/products/docker-desktop/)
-- **Linux**: Install Docker and Docker Compose via package manager
+1. **Docker Desktop**
+   - Windows: [Download Docker Desktop](https://www.docker.com/products/docker-desktop/)
+     - Enable WSL2 backend in settings
+   - macOS: [Download Docker Desktop](https://www.docker.com/products/docker-desktop/)
+   - Linux: Install Docker Engine and Docker Compose
+     ```bash
+     # Ubuntu/Debian
+     sudo apt-get update
+     sudo apt-get install docker.io docker-compose
+     
+     # Add your user to docker group
+     sudo usermod -aG docker $USER
+     newgrp docker
+     ```
 
-✅ **Git** (for cloning the repository)
-- Download from [git-scm.com](https://git-scm.com/downloads)
+2. **Git**
+   - Windows: [Download Git for Windows](https://git-scm.com/download/win)
+   - macOS: `brew install git` or [Download](https://git-scm.com/download/mac)
+   - Linux: `sudo apt-get install git` (Ubuntu/Debian)
 
-✅ **Terminal/Command Line Access**
-- Windows: PowerShell or Command Prompt
-- macOS/Linux: Terminal
+3. **Node.js** (Optional - only if running server directly)
+   - Download from [nodejs.org](https://nodejs.org/) (LTS version recommended)
+   - Not required if using Docker (recommended method)
 
-### Optional Software (for specific integrations)
+### System Requirements
 
-📦 **Claude Desktop** (for Claude integration)
-- Download from [claude.ai](https://claude.ai/download)
+- **RAM**: 4GB minimum, 8GB recommended
+- **Disk Space**: 5GB minimum for Docker images
+- **Network**: Internet connection for initial setup
 
-📦 **Cursor IDE** (for Cursor integration)
-- Download from [cursor.sh](https://cursor.sh/)
-
-📦 **n8n** (for workflow automation)
-- See [n8n Integration Guide](docs/N8N_INTEGRATION.md)
-
----
-
-## Quick Start (Docker)
-
-This is the fastest way to get MCP Pentest Forge up and running.
+## Installation
 
 ### Step 1: Clone the Repository
-
-Open your terminal and run:
 
 ```bash
 # Clone the repository
@@ -65,81 +59,52 @@ git clone https://github.com/akilhassane/mcp-pentest-forge.git
 cd mcp-pentest-forge
 ```
 
-### Step 2: Start the Containers
+### Step 2: Build and Start Containers
 
 ```bash
 # Build and start both containers (MCP server + Kali Linux)
 docker-compose up -d
 
-# Wait 10-20 seconds for containers to fully start
+# This will:
+# - Pull/build the Kali Linux image (~2GB)
+# - Build the MCP server image
+# - Start both containers in the background
 ```
 
-### Step 3: Verify Containers are Running
+### Step 3: Verify Installation
 
 ```bash
-# Check container status
+# Check containers are running
 docker ps
 
 # You should see two containers:
-# - mcp-pentest-forge
-# - kali-pentest
+# - mcp-pentest-forge (MCP server)
+# - kali-pentest (Kali Linux environment)
+
+# View logs
+docker-compose logs -f
+
+# Test Kali Linux access
+docker exec -it kali-pentest bash
 ```
 
-Expected output:
-```
-CONTAINER ID   IMAGE                    STATUS         PORTS
-abc123def456   mcp-pentest-forge        Up 2 minutes   8811/tcp
-xyz789ghi012   kali-pentest             Up 2 minutes
-```
+## Configuration Options
 
-### Step 4: Test the Installation
+You have three main ways to use MCP-Pentest-Forge:
 
-```bash
-# Test Kali Linux container
-docker exec -it kali-pentest whoami
-# Expected output: pentester
+### Claude Desktop Setup
 
-# Test MCP server
-docker logs mcp-pentest-forge
-# You should see: "MCP Pentest Forge - HTTP Server Started"
-```
+Claude Desktop provides the most integrated AI pentesting experience.
 
-✅ **Success!** Your Docker containers are now running. Proceed to integration setup below.
+#### Step 1: Locate Configuration File
 
----
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`  
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-## Claude Desktop Integration
+#### Step 2: Add MCP Server Configuration
 
-Integrate MCP Pentest Forge with Claude Desktop for AI-powered pentesting.
-
-### Step 1: Locate Your Claude Desktop Config File
-
-The configuration file location depends on your operating system:
-
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-  - Full path: `C:\Users\YourUsername\AppData\Roaming\Claude\claude_desktop_config.json`
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-### Step 2: Open the Config File
-
-**Windows:**
-```powershell
-# Open in Notepad
-notepad %APPDATA%\Claude\claude_desktop_config.json
-```
-
-**macOS/Linux:**
-```bash
-# Open in your default editor
-nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
-# or
-code ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-### Step 3: Add MCP Pentest Forge Configuration
-
-If the file is **empty or doesn't exist**, paste this entire configuration:
+Open the config file and add:
 
 ```json
 {
@@ -158,81 +123,36 @@ If the file is **empty or doesn't exist**, paste this entire configuration:
 }
 ```
 
-If the file **already has content**, add the `pentest-forge` section inside the existing `mcpServers` object:
+If you already have other MCP servers configured, just add `"pentest-forge"` to your existing `mcpServers` object.
 
-```json
-{
-  "mcpServers": {
-    "existing-server": {
-      ...existing configuration...
-    },
-    "pentest-forge": {
-      "command": "docker",
-      "args": [
-        "exec",
-        "-i",
-        "mcp-pentest-forge",
-        "node",
-        "/app/server.js"
-      ]
-    }
-  }
-}
+#### Step 3: Restart Claude Desktop
+
+1. Completely quit Claude Desktop
+2. Start Claude Desktop again
+3. Look for the 🔨 (hammer) icon in the chat interface
+4. You should see "pentest-forge" listed with the `kali_execute` tool
+
+#### Step 4: Test It
+
+In Claude Desktop, try:
+```
+"Show me my current username and hostname"
+"Discover all devices on my network"
+"What tools are available in this Kali environment?"
 ```
 
-### Step 4: Restart Claude Desktop
+### Cursor IDE Setup
 
-1. **Completely quit Claude Desktop** (not just close the window)
-   - Windows: Right-click the system tray icon → Exit
-   - macOS: Cmd+Q
-   - Linux: Close all windows and quit the app
+Cursor IDE integration allows you to use pentesting tools while coding.
 
-2. **Relaunch Claude Desktop**
+#### Step 1: Open Cursor Settings
 
-3. **Verify the integration**:
-   - Start a new conversation
-   - Look for the 🔌 hammer icon in the bottom right
-   - Click it to see available MCP servers
-   - You should see "pentest-forge" listed
+- Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)
+- Type "MCP" and select "Open MCP Settings"
 
-### Step 5: Test the Integration
+Or manually edit: `.cursor/mcp_config.json` in your workspace
 
-In Claude Desktop, try these commands:
-
-```
-Can you execute "whoami" in Kali Linux?
-```
-
-```
-What tools are available in the Kali environment?
-```
-
-```
-Scan my local network for devices
-```
-
-✅ **Success!** Claude Desktop is now connected to your Kali Linux environment!
-
----
-
-## Cursor IDE Integration
-
-Integrate MCP Pentest Forge with Cursor IDE for in-editor pentesting capabilities.
-
-### Step 1: Open Cursor Settings
-
-1. Open Cursor IDE
-2. Go to **Settings** (File → Preferences → Settings)
-3. Search for "MCP" or navigate to **Extensions → MCP Configuration**
-
-### Step 2: Add MCP Server Configuration
-
-1. Click on "Edit MCP Servers Configuration" or locate the config file:
-   - **Windows**: `%APPDATA%\Cursor\User\mcp_config.json`
-   - **macOS**: `~/Library/Application Support/Cursor/User/mcp_config.json`
-   - **Linux**: `~/.config/Cursor/User/mcp_config.json`
-
-2. Add the MCP Pentest Forge configuration:
+#### Step 2: Add Configuration
 
 ```json
 {
@@ -251,255 +171,223 @@ Integrate MCP Pentest Forge with Cursor IDE for in-editor pentesting capabilitie
 }
 ```
 
-### Step 3: Restart Cursor IDE
+#### Step 3: Reload Cursor
 
-1. Completely quit Cursor IDE
-2. Relaunch Cursor IDE
-3. Open a new file or project
+- Press `Ctrl+Shift+P` / `Cmd+Shift+P`
+- Type "Reload Window" and press Enter
 
-### Step 4: Verify the Integration
+#### Step 4: Test It
 
-1. Open the command palette (Ctrl+Shift+P or Cmd+Shift+P)
-2. Type "MCP" to see MCP-related commands
-3. You should see "pentest-forge" as an available server
-
-### Step 5: Test the Integration
-
-In Cursor, use the AI assistant to test:
-
+In Cursor's AI chat, try:
 ```
-@pentest-forge Run "hostname -I" to show my IP address
+"Use pentest-forge to scan localhost"
+"Check what pentesting tools are available"
 ```
 
-✅ **Success!** Cursor IDE is now integrated with MCP Pentest Forge!
+### n8n Integration
 
----
+For automation workflows and remote access, use n8n integration.
 
-## n8n Integration
+**See detailed guide:** [n8n Integration Guide](docs/N8N_INTEGRATION.md)
 
-For advanced workflow automation with n8n, see the complete guide:
+**Quick overview:**
 
-📘 **[n8n Integration Guide](docs/N8N_INTEGRATION.md)**
+1. Enable HTTP mode by creating `.env`:
+   ```bash
+   HTTP_PORT=3000
+   ```
 
-Quick overview:
+2. Restart containers:
+   ```bash
+   docker-compose restart
+   ```
 
-1. **Enable HTTP Mode**: Set `HTTP_PORT=8811` in environment
-2. **Access HTTP API**: Server runs on `http://localhost:8811`
-3. **Configure n8n**: Use the MCP Client node with SSE endpoint
-4. **Create Workflows**: Build automated security testing workflows
+3. Import the workflow from `workflows/workflow-iterative.json`
 
-Example HTTP API call:
+4. Configure OpenAI credentials
+
+5. Test the workflow
+
+## Verification
+
+### Test Basic Functionality
 
 ```bash
-# Test the API
-curl http://localhost:8811/
+# 1. Check containers are running
+docker ps
 
-# Execute a command
-curl -X POST http://localhost:8811/api/tools/kali_execute \
+# 2. Access Kali shell directly
+docker exec -it kali-pentest bash
+
+# 3. Inside Kali, test a tool
+whoami
+hostname -I
+nmap --version
+```
+
+### Test MCP Server
+
+```bash
+# Test HTTP endpoint (if enabled)
+curl http://localhost:3000/
+
+# Test tool execution
+curl -X POST http://localhost:3000/api/tools/kali_execute \
   -H "Content-Type: application/json" \
   -d '{"arguments": {"command": "whoami"}}'
 ```
 
-For remote access and ngrok setup:
-- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md)
-- 📘 [ngrok Quick Start](NGROK_QUICK_START.md)
+### Test with MCP Client
 
----
+In Claude Desktop or Cursor:
+```
+"Execute: whoami"
+"What's my IP address?"
+"List available pentesting tools"
+```
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Containers Won't Start
 
-#### Issue: "Container not found" error
+**Issue**: Docker containers fail to start
 
-**Solution:**
+**Solutions**:
 ```bash
-# Ensure containers are running
+# Check Docker is running
+docker --version
+
+# View detailed logs
+docker-compose logs
+
+# Rebuild containers
+docker-compose down
+docker-compose build --no-cache
 docker-compose up -d
 
-# Verify container names
-docker ps
-
-# If containers have different names, update your config
+# Check for port conflicts
+netstat -ano | findstr :3000  # Windows
+lsof -i :3000  # macOS/Linux
 ```
 
-#### Issue: Claude Desktop doesn't show the MCP server
+### Claude Desktop Can't Find Server
 
-**Solutions:**
-1. **Verify JSON syntax** in config file (use [jsonlint.com](https://jsonlint.com/))
-2. **Check file location** - ensure you're editing the correct config file
-3. **Restart Claude Desktop** completely (quit, not just close)
-4. **Check Docker** - ensure containers are running: `docker ps`
+**Issue**: Claude Desktop doesn't show the pentest-forge tool
 
-#### Issue: "Permission denied" errors
+**Solutions**:
+1. Verify containers are running: `docker ps`
+2. Check config file path is correct
+3. Ensure JSON syntax is valid (use [jsonlint.com](https://jsonlint.com))
+4. Completely quit and restart Claude Desktop (not just close window)
+5. Check Claude Desktop logs:
+   - Windows: `%APPDATA%\Claude\logs`
+   - macOS: `~/Library/Logs/Claude`
+   - Linux: `~/.config/Claude/logs`
 
-**Windows Solution:**
-```powershell
-# Run Docker Desktop as Administrator
-# Right-click Docker Desktop icon → Run as Administrator
-```
+### Network Scanning Issues
 
-**Linux Solution:**
+**Issue**: Can't scan local network devices
+
+**Solutions**:
+1. Ensure host network mode is enabled in `docker-compose.yml`
+2. On Windows, verify WSL2 backend is enabled in Docker Desktop
+3. Check firewall isn't blocking scans
+4. For Windows: You may need to scan from WSL2 network perspective
+
+### Permission Denied Errors
+
+**Issue**: Docker permission errors on Linux
+
+**Solutions**:
 ```bash
-# Add your user to the docker group
+# Add user to docker group
 sudo usermod -aG docker $USER
 
-# Logout and login again for changes to take effect
+# Refresh group membership
+newgrp docker
+
+# Or run with sudo (not recommended)
+sudo docker-compose up -d
 ```
 
-#### Issue: Container fails to start
+### Out of Memory Errors
 
-**Solution:**
-```bash
-# Check logs for errors
-docker logs mcp-pentest-forge
-docker logs kali-pentest
+**Issue**: Containers crash or fail to start
 
-# Common fixes:
-# 1. Restart Docker Desktop
-# 2. Remove old containers and rebuild
-docker-compose down
-docker-compose up -d --build
+**Solutions**:
+1. Increase Docker memory limit:
+   - Docker Desktop → Settings → Resources → Memory
+   - Increase to at least 4GB, preferably 8GB
+2. Close other applications
+3. Restart Docker Desktop
+
+### Connection Refused (n8n)
+
+**Issue**: n8n can't connect to MCP server
+
+**Solutions**:
+1. Ensure HTTP mode is enabled (`.env` with `HTTP_PORT=3000`)
+2. Restart containers after changing .env
+3. Check firewall settings
+4. For remote access, set up ngrok (see [ngrok Setup Guide](docs/NGROK_SETUP.md))
+
+### WSL2 Issues (Windows)
+
+**Issue**: Docker networking problems on Windows
+
+**Solutions**:
+1. Enable WSL2 backend in Docker Desktop settings
+2. Update WSL2: `wsl --update`
+3. Restart Docker Desktop
+4. For network scanning, consider using Docker Desktop with WSL2 Ubuntu
+
+## Advanced Configuration
+
+### Environment Variables
+
+Create a `.env` file for custom configuration:
+
+```env
+# HTTP Server Port (for n8n integration)
+HTTP_PORT=3000
+
+# Kali Container Name
+KALI_CONTAINER_NAME=kali-pentest
+
+# Custom network settings
+# (Advanced users only)
 ```
 
-#### Issue: Cannot access network from Kali container
+### Custom Tool Catalogs
 
-**Solution:**
-- Verify host networking mode in `docker-compose.yml`
-- On Windows, ensure WSL2 backend is enabled in Docker Desktop
-- Check firewall settings
+Edit catalog files in `catalogs/` directory to customize available tools.
 
-#### Issue: MCP server shows "SSH connection failed"
+### Resource Limits
 
-**Solution:**
-```bash
-# Verify Kali container SSH service
-docker exec -it kali-pentest systemctl status ssh
+Edit `docker-compose.yml` to adjust resource limits:
 
-# Restart SSH if needed
-docker exec -it kali-pentest systemctl restart ssh
-
-# Verify SSH credentials (default: pentester/pentester)
+```yaml
+services:
+  kali-pentest:
+    mem_limit: 4g
+    cpus: 2
 ```
-
----
-
-## Verification
-
-### Complete System Check
-
-Run this verification script to ensure everything is working:
-
-**Windows (PowerShell):**
-```powershell
-Write-Host "=== MCP Pentest Forge System Check ===" -ForegroundColor Cyan
-
-Write-Host "`n1. Checking Docker..." -ForegroundColor Yellow
-docker --version
-
-Write-Host "`n2. Checking containers..." -ForegroundColor Yellow
-docker ps | Select-String "mcp-pentest-forge|kali-pentest"
-
-Write-Host "`n3. Testing Kali Linux..." -ForegroundColor Yellow
-docker exec -it kali-pentest whoami
-docker exec -it kali-pentest nmap --version
-
-Write-Host "`n4. Testing MCP Server..." -ForegroundColor Yellow
-docker logs --tail 5 mcp-pentest-forge
-
-Write-Host "`n5. Testing HTTP API..." -ForegroundColor Yellow
-curl http://localhost:8811/health
-
-Write-Host "`n=== Verification Complete ===" -ForegroundColor Green
-```
-
-**macOS/Linux (Bash):**
-```bash
-#!/bin/bash
-echo "=== MCP Pentest Forge System Check ==="
-
-echo -e "\n1. Checking Docker..."
-docker --version
-
-echo -e "\n2. Checking containers..."
-docker ps | grep -E "mcp-pentest-forge|kali-pentest"
-
-echo -e "\n3. Testing Kali Linux..."
-docker exec -it kali-pentest whoami
-docker exec -it kali-pentest nmap --version
-
-echo -e "\n4. Testing MCP Server..."
-docker logs --tail 5 mcp-pentest-forge
-
-echo -e "\n5. Testing HTTP API..."
-curl http://localhost:8811/health
-
-echo -e "\n=== Verification Complete ==="
-```
-
-### Expected Results
-
-✅ All checks should pass:
-- Docker version displayed
-- Both containers listed as "Up"
-- Kali commands execute successfully
-- MCP server logs show "Server Started"
-- HTTP API returns health status
-
----
 
 ## Next Steps
 
-Once setup is complete, you can:
+- **For n8n workflows**: [n8n Integration Guide](docs/N8N_INTEGRATION.md)
+- **For remote access**: [Remote Access Guide](docs/REMOTE_ACCESS.md)
+- **For internet exposure**: [ngrok Setup Guide](docs/NGROK_SETUP.md)
+- **API documentation**: [API Reference](docs/API_REFERENCE.md)
+- **Video tutorials**: [YouTube Resources](docs/YOUTUBE_RESOURCES.md)
 
-1. **Explore the tool capabilities**:
-   ```
-   "Show me what pentesting tools are available"
-   "Discover all devices on my network"
-   "Scan 192.168.1.1 for open ports"
-   ```
+## Getting Help
 
-2. **Read the documentation**:
-   - 📘 [API Reference](docs/API_REFERENCE.md)
-   - 📘 [YouTube Tutorials](docs/YOUTUBE_RESOURCES.md)
-   - 📘 [n8n Integration](docs/N8N_INTEGRATION.md)
-
-3. **Join the community**:
-   - ⭐ Star the repo on [GitHub](https://github.com/akilhassane/mcp-pentest-forge)
-   - 🐛 Report issues
-   - 🤝 Contribute improvements
+- **Issues**: [GitHub Issues](https://github.com/akilhassane/mcp-pentest-forge/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/akilhassane/mcp-pentest-forge/discussions)
+- **Security Issues**: Email privately (see README for contact)
 
 ---
 
-## Security Notice
-
-⚠️ **IMPORTANT**: This tool provides **unrestricted access** to a Kali Linux environment with 200+ pentesting tools.
-
-**Usage Requirements:**
-- ✅ Obtain written authorization before testing any systems
-- ✅ Only use on systems you own or have permission to test
-- ✅ Follow responsible disclosure practices
-- ✅ Comply with all applicable laws and regulations
-
-**Never use this tool for:**
-- ❌ Unauthorized access to systems or networks
-- ❌ Malicious activities or attacks
-- ❌ Violating terms of service or laws
-
----
-
-## Support
-
-Need help? Here's how to get support:
-
-1. **Check the documentation** in the `docs/` folder
-2. **Review troubleshooting** section above
-3. **Search existing issues** on [GitHub](https://github.com/akilhassane/mcp-pentest-forge/issues)
-4. **Open a new issue** if your problem isn't covered
-
----
-
-**Happy (ethical) hacking! 🔒⚡**
-
-Built with ❤️ by [akilhassane](https://github.com/akilhassane)
+**Ready to start pentesting? Try your first command!** 🎯
 

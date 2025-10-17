@@ -44,15 +44,13 @@ This tool is designed exclusively for **authorized security testing and research
 
 ## 📖 Documentation
 
-### 🚀 **[Complete Setup Guide](SETUP.md)** - Start Here!
+### 🚀 **[Complete Setup Guide (SETUP.md)](SETUP.md)** - Start here!
 
 Comprehensive guides available:
-- 🚀 **[SETUP.md](SETUP.md)** - **Complete step-by-step setup guide for all platforms**
 - 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md) - Complete n8n workflow integration
 - 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md) - Remote console and cloud deployment
 - 🌐 [ngrok Setup Guide](docs/NGROK_SETUP.md) - Expose server to the internet
 - ⚡ [ngrok Quick Start](NGROK_QUICK_START.md) - 3-minute internet access setup
-- 📘 [Quick Start n8n](docs/QUICK_START_N8N.md) - 5-minute n8n setup
 - 📘 [API Reference](docs/API_REFERENCE.md) - Complete HTTP API documentation
 - 📺 [YouTube Resources](docs/YOUTUBE_RESOURCES.md) - Video tutorials and learning path
 
@@ -193,6 +191,8 @@ For complete n8n setup and remote access configuration, see:
 - 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md)
 - 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md)
 
+**n8n Workflow**: Import `workflows/workflow-iterative.json` into n8n for autonomous pentesting!
+
 ### Direct Container Access
 
 ```bash
@@ -311,9 +311,10 @@ The authors and contributors of MCP-Pentest-Forge:
 
 ## 🙏 Acknowledgments
 
+- **Inspired by [Network Chuck](https://www.youtube.com/@NetworkChuck)** - For making AI and cybersecurity accessible and inspiring this project
 - Built with the [Model Context Protocol](https://modelcontextprotocol.io/)
 - Powered by [Kali Linux](https://www.kali.org/)
-- Inspired by the cybersecurity community
+- Thanks to the amazing cybersecurity and open-source communities
 
 ---
 
