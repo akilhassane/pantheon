@@ -6,7 +6,7 @@
 
 ## 🎥 Demo Video
 
-[<img src="https://img.shields.io/badge/🎬_Click_to_Play_Demo-000000?style=for-the-badge&logo=github&logoColor=white&labelColor=FF0000" alt="Demo Video">](demo.html)
+<img src="demo.gif" alt="MCP-Pentest-Forge Demo" width="100%">
 
 ## Overview
 
