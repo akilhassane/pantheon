@@ -6,7 +6,7 @@
 
 ## 🎥 Demo Video
 
-<img src="demo.gif" alt="MCP-Pentest-Forge Demo" width="100%">
+<img src="demo_hq.gif" alt="MCP-Pentest-Forge Demo" width="100%">
 
 ## Overview
 
