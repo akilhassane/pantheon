@@ -6,10 +6,7 @@
 
 ## 🎥 Demo Video
 
-<video width="100%" controls autoplay loop muted>
-  <source src="Kali%20mcp%20n8n%20demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+[![Demo Video](https://img.shields.io/badge/▶️_Click_to_Play_Demo-red?style=for-the-badge&logo=github&logoColor=white)](Kali%20mcp%20n8n%20demo.mp4)
 
 ## Overview
 
