@@ -6,7 +6,7 @@
 
 ## 🎥 Demo Video
 
-[![Demo Video](https://img.shields.io/badge/▶️_Click_to_Play_Demo-red?style=for-the-badge&logo=github&logoColor=white)](Kali%20mcp%20n8n%20demo.mp4)
+<img src="demo_final.gif" alt="MCP-Pentest-Forge Demo" width="100%">
 
 ## Overview
 
