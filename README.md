@@ -44,12 +44,9 @@ This tool is designed exclusively for **authorized security testing and research
 
 ## 📖 Documentation
 
-### 🎥 **Demo Video** - Watch the full demo!
+### 🎥 **[Demo Video - Click to Play](Kali%20mcp%20n8n%20demo.mp4)** - Watch the full demo!
 
-<video width="100%" controls>
-  <source src="Kali%20mcp%20n8n%20demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+[![Demo Video](https://img.shields.io/badge/▶️_Watch_Demo-Click_to_Play-blue?style=for-the-badge&logo=video&logoColor=white)](Kali%20mcp%20n8n%20demo.mp4)
 
 ### 🚀 **[Complete Setup Guide (SETUP.md)](SETUP.md)** - Start here!
 
