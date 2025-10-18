@@ -4,6 +4,10 @@
 [![Kali Linux](https://img.shields.io/badge/Kali-268BEE?style=for-the-badge&logo=kalilinux&logoColor=white)](https://www.kali.org/)
 [![Node.js](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 
+## 🎥 Demo Video
+
+[<img src="https://img.shields.io/badge/🎬_Click_to_Play_Demo-000000?style=for-the-badge&logo=github&logoColor=white&labelColor=FF0000" alt="Demo Video">](demo.html)
+
 ## Overview
 
 **MCP-Pentest-Forge** is a powerful Model Context Protocol (MCP) server that provides unrestricted access to a **Kali Linux pentesting environment**. This tool empowers security professionals and penetration testers to perform comprehensive security assessments using 200+ security tools through natural language commands.
@@ -43,10 +47,6 @@ This tool is designed exclusively for **authorized security testing and research
 - Using the tool ethically and legally
 
 ## 📖 Documentation
-
-### 🎥 **[Demo Video - Click to Play](Kali%20mcp%20n8n%20demo.mp4)** - Watch the full demo!
-
-[![Demo Video](https://img.shields.io/badge/▶️_Watch_Demo-Click_to_Play-blue?style=for-the-badge&logo=video&logoColor=white)](Kali%20mcp%20n8n%20demo.mp4)
 
 ### 🚀 **[Complete Setup Guide (SETUP.md)](SETUP.md)** - Start here!
 
