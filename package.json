@@ -23,7 +23,8 @@
     "@modelcontextprotocol/sdk": "^0.4.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "ssh2": "^1.15.0"
+    "ssh2": "^1.15.0",
+    "ws": "^8.14.0"
   },
   "engines": {
     "node": ">=18.0.0"

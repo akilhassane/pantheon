@@ -8,6 +8,9 @@ services:
     restart: unless-stopped
     ports:
       - "8811:8811"  # Expose HTTP port 8811 for n8n/remote access
+      - "3001:3001"  # Backend API port
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket for container access
     environment:
       - NODE_ENV=production
       - HTTP_PORT=8811
@@ -41,6 +44,9 @@ services:
     cap_add:
       - NET_RAW      # Required for raw packet manipulation (nmap, etc.)
       - NET_ADMIN    # Required for network administration tasks
+    ports:
+      - "7681:7681"  # Expose ttyd web terminal port
+      - "2222:2222"  # SSH port
     environment:
       - TERM=xterm-256color
     volumes:

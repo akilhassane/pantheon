@@ -2,57 +2,6 @@
   "nodes": [
     {
       "parameters": {
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
-      "typeVersion": 1.3,
-      "position": [
-        -2992,
-        -96
-      ],
-      "id": "9d0b5274-d329-44ad-8d6e-0ddee887bfcd",
-      "name": "When chat message received",
-      "webhookId": "abd7c3e7-6916-4167-b51f-b73b12ddfbc3"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Initialize workflow state\nconst chatInput = $input.first().json.chatInput;\n\nreturn {\n  json: {\n    chatInput: chatInput,\n    originalQuery: chatInput,\n    iteration: 0,\n    maxIterations: 5,\n    commandHistory: [],\n    shouldContinue: true,\n    finalAnswer: null\n  }\n};"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -2768,
-        -96
-      ],
-      "id": "790e9b7e-8347-49ef-8304-755f003f9093",
-      "name": "Initialize State"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4.1-mini"
-        },
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        -2496,
-        96
-      ],
-      "id": "0bb122da-ff85-4c83-8517-01d01e294428",
-      "name": "OpenAI Chat Model - Command",
-      "credentials": {
-        "openAiApi": {
-          "id": "lxJpY1OiuVSf1yri",
-          "name": "OpenAi account"
-        }
-      }
-    },
-    {
-      "parameters": {
         "promptType": "define",
         "text": "=Original User Query: {{ $('When chat message received').item.json.chatInput }}\n\nCurrent Iteration: {{ $json.iteration }}/{{ $json.maxIterations }}\n\n{% if $json.commandHistory.length > 0 %}\nPrevious Commands Executed:\n{% for cmd in $json.commandHistory %}\n---\nCommand: \nOutput: \nStatus: \n---\n{% endfor %}\n{% else %}\nNo previous commands executed yet.\n{% endif %}\n\nBased on the user's query and any previous results, generate the NEXT single command needed to accomplish the goal. Output ONLY the command, nothing else.",
         "options": {
@@ -62,10 +11,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
       "position": [
-        -2496,
-        -96
+        -1872,
+        144
       ],
-      "id": "fd5cff65-bea7-45d7-9c7e-89f448409ecb",
+      "id": "f18990d4-c866-48fb-8664-4b658b4cf2c7",
       "name": "Command Generator Agent"
     },
     {
@@ -89,10 +38,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2096,
-        -96
+        -1472,
+        144
       ],
-      "id": "0de9438a-7bae-4e8f-9641-08f666edcbd1",
+      "id": "76dbe3f1-a705-4b26-88f5-77a33fd2bb3b",
       "name": "Execute Command"
     },
     {
@@ -121,35 +70,11 @@
       "type": "@n8n/n8n-nodes-langchain.informationExtractor",
       "typeVersion": 1.2,
       "position": [
-        -1840,
-        -96
+        -1216,
+        144
       ],
-      "id": "24e10f3b-e4af-4c2f-a83d-17fe8ecbaaad",
+      "id": "1094e224-1979-4031-a625-683c97c1be51",
       "name": "Extract Command Results"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4.1-mini"
-        },
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        -1840,
-        96
-      ],
-      "id": "5555c548-0475-4957-b958-247a6b277f0a",
-      "name": "OpenAI Chat Model - Extract",
-      "credentials": {
-        "openAiApi": {
-          "id": "lxJpY1OiuVSf1yri",
-          "name": "OpenAi account"
-        }
-      }
     },
     {
       "parameters": {
@@ -158,35 +83,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1536,
-        -96
+        -912,
+        144
       ],
-      "id": "6b508c26-8b34-47f6-b7ca-c843ba79991a",
+      "id": "82cfa659-04f6-40f8-b19c-ad66f4aec0fb",
       "name": "Update Command History"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4.1-mini"
-        },
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        -1344,
-        96
-      ],
-      "id": "0cf91583-b353-44ca-92d7-0d3ddc336c72",
-      "name": "OpenAI Chat Model - Reflection",
-      "credentials": {
-        "openAiApi": {
-          "id": "lxJpY1OiuVSf1yri",
-          "name": "OpenAi account"
-        }
-      }
     },
     {
       "parameters": {
@@ -199,10 +100,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
       "position": [
-        -1344,
-        -96
+        -720,
+        144
       ],
-      "id": "cad14612-cac0-48fd-ad8c-57bd54a274a3",
+      "id": "be25c3c2-fdc9-4c09-ad93-16e741648bb3",
       "name": "Reflection Agent"
     },
     {
@@ -212,10 +113,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1088,
-        -96
+        -464,
+        144
       ],
-      "id": "9e62a6ac-135d-4342-aeea-342e365e2f34",
+      "id": "8f69c0c2-f5e5-4d80-a349-586faf3c97df",
       "name": "Decision Logic"
     },
     {
@@ -245,10 +146,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -848,
-        -96
+        -224,
+        144
       ],
-      "id": "6dfe846d-e055-465e-8c26-0de6bbe2a8b1",
+      "id": "3f0dfc57-c8f2-4e4e-aa63-087e0179f00b",
       "name": "Should Continue?"
     },
     {
@@ -260,10 +161,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        -592,
-        0
+        32,
+        240
       ],
-      "id": "c91862d0-48ff-4bc1-b605-a1d9d10e6372",
+      "id": "6c0621f4-d54b-4aeb-be93-b1adf299f553",
       "name": "Return Final Answer"
     },
     {
@@ -273,168 +174,103 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -608,
-        -304
+        16,
+        -64
       ],
-      "id": "057d46dd-8c51-44c2-825b-aae33fba80b5",
+      "id": "6acdcdc2-4aff-42f6-93dd-db3a2813020e",
       "name": "Loop Back"
-    }
-  ],
-  "connections": {
-    "When chat message received": {
-      "main": [
-        [
-          {
-            "node": "Initialize State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     },
-    "Initialize State": {
-      "main": [
-        [
-          {
-            "node": "Command Generator Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    {
+      "parameters": {
+        "path": "185db2a5-a3d9-460a-8d19-c36bab30230f",
+        "options": {},
+        "httpMethod": "POST"
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2384,
+        -32
+      ],
+      "id": "71ef3d3b-d486-4ac5-bc03-496c25ef2475",
+      "name": "Webhook",
+      "webhookId": "185db2a5-a3d9-460a-8d19-c36bab30230f"
     },
-    "OpenAI Chat Model - Command": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Command Generator Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
+    {
+      "parameters": {
+        "jsCode": "// Initialize workflow state\nconst chatInput = $input.first().json.chatInput;\n\nreturn {\n  json: {\n    chatInput: chatInput,\n    originalQuery: chatInput,\n    iteration: 0,\n    maxIterations: 5,\n    commandHistory: [],\n    shouldContinue: true,\n    finalAnswer: null\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2128,
+        -32
+      ],
+      "id": "6249c268-3dde-4b04-a37a-c7d94655a0d1",
+      "name": "Initialize State1"
     },
-    "Command Generator Agent": {
-      "main": [
-        [
-          {
-            "node": "Execute Command",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1872,
+        352
+      ],
+      "id": "21d0b28b-cb7b-44b5-9d3c-1dc8d1c65589",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "aBKZ6rRmhjWVPgW7",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     },
-    "Execute Command": {
-      "main": [
-        [
-          {
-            "node": "Extract Command Results",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        352
+      ],
+      "id": "6f010722-b3de-44fa-aa7d-b1dfc4872de1",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "aBKZ6rRmhjWVPgW7",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     },
-    "Extract Command Results": {
-      "main": [
-        [
-          {
-            "node": "Update Command History",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        352
+      ],
+      "id": "bd66364d-bb50-4723-b72f-779c8814b960",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "aBKZ6rRmhjWVPgW7",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     },
-    "OpenAI Chat Model - Extract": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Extract Command Results",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Command History": {
-      "main": [
-        [
-          {
-            "node": "Reflection Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model - Reflection": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Reflection Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Reflection Agent": {
-      "main": [
-        [
-          {
-            "node": "Decision Logic",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Decision Logic": {
-      "main": [
-        [
-          {
-            "node": "Should Continue?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Should Continue?": {
-      "main": [
-        [
-          {
-            "node": "Loop Back",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Return Final Answer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Loop Back": {
-      "main": [
-        [
-          {
-            "node": "Command Generator Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Return Final Answer": {}
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "57d1eb6091df5c3dea905bb1e3b4e215daa7fa51e97f1d0b160fc290b2b7e278"
+    "instanceId": "9d9943ccfeaf13e8323361391d289ec5f04ed64cf83f6cde6d65bf7f22875d34"
   }
 }

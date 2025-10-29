@@ -21,6 +21,13 @@ import cors from 'cors';
 // SSH client for Kali container communication
 import { Client as SSHClient } from 'ssh2';
 
+// Add WebSocket support for terminal sessions
+import WebSocket from 'ws';
+import http from 'http';
+
+// Track active terminal sessions
+const terminalSessions = new Map();
+
 const execAsync = promisify(exec);
 
 class PentestForgeServer {
@@ -1272,10 +1279,219 @@ echo "Complete audit finished for $target"
       }
     });
 
+    // n8n webhook proxy endpoint - forwards frontend requests to n8n cloud
+    app.post('/api/n8n/webhook', async (req, res) => {
+      try {
+        const { chatInput } = req.body;
+        
+        console.error(`[n8n] Request received:`, req.body);
+        
+        if (!chatInput) {
+          console.error('[n8n] Error: Missing chatInput parameter');
+          return res.status(400).json({
+            success: false,
+            error: 'Missing chatInput parameter'
+          });
+        }
+
+        console.error(`[n8n] Proxying to n8n cloud: "${chatInput.substring(0, 100)}${chatInput.length > 100 ? '...' : ''}"`);
+
+        // Forward to n8n webhook with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+        const n8nUrl = new URL('https://household.app.n8n.cloud/webhook-test/185db2a5-a3d9-460a-8d19-c36bab30230f');
+        n8nUrl.searchParams.append('chatInput', chatInput);
+        console.error(`[n8n] Target URL: ${n8nUrl.toString()}`);
+
+        const n8nResponse = await fetch(n8nUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        console.error(`[n8n] Response status: ${n8nResponse.status} ${n8nResponse.statusText}`);
+
+        const responseText = await n8nResponse.text();
+        console.error(`[n8n] Response body: ${responseText.substring(0, 200)}${responseText.length > 200 ? '...' : ''}`);
+        
+        if (n8nResponse.ok) {
+          console.error('[n8n] ✅ Successfully forwarded to n8n');
+          res.json({
+            success: true,
+            message: responseText
+          });
+        } else {
+          console.error(`[n8n] ❌ Error from n8n: ${n8nResponse.status}`);
+          res.status(n8nResponse.status).json({
+            success: false,
+            error: `n8n returned status ${n8nResponse.status}`,
+            message: responseText
+          });
+        }
+      } catch (error) {
+        console.error(`[n8n] ❌ Proxy error:`, error.message);
+        console.error(`[n8n] Error stack:`, error.stack);
+        
+        if (error.name === 'AbortError') {
+          return res.status(504).json({
+            success: false,
+            error: 'Request timeout - n8n took too long to respond'
+          });
+        }
+        
+        res.status(500).json({
+          success: false,
+          error: error.message,
+          type: error.name
+        });
+      }
+    });
+
     const serverHost = process.env.SERVER_HOST || '0.0.0.0';
     const serverUrl = process.env.SERVER_URL || `http://localhost:${port}`;
     
-    app.listen(port, serverHost, () => {
+    // Create HTTP server instead of using app.listen directly
+    const server = http.createServer(app);
+
+    // Setup WebSocket server for terminal sessions
+    const wss = new WebSocket.Server({ server, path: '/ws/terminal' });
+
+    wss.on('connection', (ws, req) => {
+      const sessionId = req.url.split('=')[1] || Math.random().toString(36).substr(2, 9);
+      console.error(`[WebSocket] New terminal session: ${sessionId}`);
+
+      let sshStream = null;
+      let conn = null;
+
+      // Initialize SSH connection for this session
+      const initializeSSH = async () => {
+        return new Promise((resolve, reject) => {
+          conn = new SSHClient();
+
+          conn.on('ready', () => {
+            console.error(`[WebSocket] SSH connection ready for session ${sessionId}`);
+            
+            // Start an interactive shell
+            conn.shell((err, stream) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+
+              sshStream = stream;
+
+              // Send data from shell to WebSocket client
+              stream.on('data', (data) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    type: 'output',
+                    data: data.toString()
+                  }));
+                }
+              });
+
+              stream.stderr.on('data', (data) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    type: 'output',
+                    data: data.toString()
+                  }));
+                }
+              });
+
+              stream.on('close', () => {
+                console.error(`[WebSocket] Stream closed for session ${sessionId}`);
+                conn.end();
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'close' }));
+                  ws.close();
+                }
+              });
+
+              stream.on('error', (err) => {
+                console.error(`[WebSocket] Stream error: ${err.message}`);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    type: 'error',
+                    message: err.message
+                  }));
+                }
+              });
+
+              resolve();
+            });
+          });
+
+          conn.on('error', (err) => {
+            console.error(`[WebSocket] Connection error: ${err.message}`);
+            reject(err);
+          });
+
+          // Connect to Kali container via SSH
+          const sshHost = process.env.KALI_SSH_HOST || 'localhost';
+          const sshPort = parseInt(process.env.KALI_SSH_PORT || '2222');
+
+          conn.connect({
+            host: sshHost,
+            port: sshPort,
+            username: 'pentester',
+            password: 'pentester',
+            readyTimeout: 30000,
+            keepaliveInterval: 10000
+          });
+        });
+      };
+
+      // Initialize SSH connection
+      initializeSSH().catch((err) => {
+        console.error(`[WebSocket] Failed to initialize SSH: ${err.message}`);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: `Failed to connect to Kali container: ${err.message}`
+          }));
+          ws.close();
+        }
+      });
+
+      // Handle messages from WebSocket client
+      ws.on('message', (message) => {
+        try {
+          const msg = JSON.parse(message);
+
+          if (msg.type === 'input' && sshStream) {
+            // Send user input to SSH shell
+            sshStream.write(msg.data);
+          } else if (msg.type === 'resize' && sshStream) {
+            // Handle terminal resize
+            sshStream.setWindow(msg.rows, msg.cols, msg.height, msg.width);
+          }
+        } catch (err) {
+          console.error(`[WebSocket] Error handling message: ${err.message}`);
+        }
+      });
+
+      // Handle client disconnect
+      ws.on('close', () => {
+        console.error(`[WebSocket] Client disconnected from session ${sessionId}`);
+        if (conn) {
+          conn.end();
+        }
+        terminalSessions.delete(sessionId);
+      });
+
+      ws.on('error', (err) => {
+        console.error(`[WebSocket] Client error: ${err.message}`);
+      });
+
+      terminalSessions.set(sessionId, { ws, conn });
+    });
+    
+    server.listen(port, serverHost, () => {
       console.error('═══════════════════════════════════════════════════════');
       console.error('🚀 MCP Pentest Forge - HTTP Server Started');
       console.error('═══════════════════════════════════════════════════════');
@@ -1291,6 +1507,8 @@ echo "Complete audit finished for $target"
           console.error(`   POST ${serverUrl}/api/tools/:tool - Execute a tool`);
           console.error(`   POST ${serverUrl}/api/sampling - LLM analysis requests`);
           console.error(`   GET  ${serverUrl}/api/roots - Filesystem boundaries`);
+          console.error(`   POST ${serverUrl}/api/n8n/webhook - n8n webhook proxy`);
+          console.error(`   WS   ${serverUrl.replace('http', 'ws')}/ws/terminal - WebSocket terminal`);
       console.error('');
       console.error('📚 Documentation:');
       console.error('   n8n Integration: docs/N8N_INTEGRATION.md');

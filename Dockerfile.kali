@@ -1,11 +1,12 @@
-# Kali Linux Container for Pentesting
+# Kali Linux Container for Pentesting with Web Terminal
 FROM kalilinux/kali-rolling:latest
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     TERM=xterm-256color \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    SHELL=/bin/bash
 
 # Update and upgrade system
 RUN apt-get update && \
@@ -13,7 +14,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install essential tools and utilities in a single layer
+# Install essential tools and ttyd
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Basic utilities
     wget curl git vim nano sudo bash bash-completion \
@@ -36,17 +37,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     # DNS and network enumeration
     dnsutils whois \
+    # Build tools for ttyd
+    build-essential cmake git pkg-config libssl-dev nodejs npm \
+    zlib1g-dev libjson-c-dev libwebsockets-dev \
+    # Additional required packages
+    procps \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Build and install ttyd from source
+RUN cd /tmp && \
+    git clone https://github.com/tsl0922/ttyd.git && \
+    cd ttyd && \
+    mkdir -p build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make && make install && \
+    cd / && rm -rf /tmp/ttyd
 
 # Configure SSH server
 RUN mkdir -p /run/sshd && \
     # Enable password authentication
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    # Enable root login (we'll use pentester user though)
+    # Enable root login
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    # Configure SSH to listen on custom port (will be set via environment variable)
+    # Configure SSH to listen on port 2222
     sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config
 
 # Create a non-root user for pentesting
@@ -64,19 +79,42 @@ RUN mkdir -p /workspace /tools && \
 # Set working directory
 WORKDIR /workspace
 
-# Switch to pentester user (commands run via docker exec will use this user by default)
-USER pentester
+# Create entrypoint script
+RUN cat > /entrypoint.sh << 'EOF'
+#!/bin/bash
+set -e
 
-# Set up bash environment with nice prompt
-RUN echo 'export PS1="\[\e[1;32m\]kali@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]$ "' >> ~/.bashrc && \
-    echo 'alias ll="ls -lah"' >> ~/.bashrc && \
-    echo 'alias nmap-quick="nmap -sV -sC"' >> ~/.bashrc && \
-    echo 'alias nmap-full="nmap -sV -sC -p-"' >> ~/.bashrc
+echo "🚀 Starting Kali Linux with ttyd Web Terminal..."
 
-# Health check to ensure container is responsive
+# Start ttyd in the background on port 7681
+echo "Starting ttyd on port 7681..."
+/usr/bin/ttyd -p 7681 bash &
+TTYD_PID=$!
+
+# Start SSH server
+echo "Starting SSH server on port 2222..."
+sudo /usr/sbin/sshd -D &
+SSH_PID=$!
+
+echo "✅ Services started:"
+echo "   - ttyd Web Terminal: http://localhost:7681"
+echo "   - SSH Server: localhost:2222"
+echo ""
+echo "Ready for connections! Press Ctrl+C to stop."
+
+# Wait for processes
+wait $TTYD_PID $SSH_PID
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+# Expose ports
+EXPOSE 22 2222 7681
+
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD bash -c "echo 'Container is healthy'" || exit 1
+    CMD curl -f http://localhost:7681 || exit 1
 
-# Start SSH server and keep container running
-CMD ["/bin/bash", "-c", "sudo /usr/sbin/sshd && tail -f /dev/null"]
+# Run entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
 

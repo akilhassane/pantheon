@@ -1,0 +1,74 @@
+/**
+ * Terminal Command Echo Styles
+ * Styles for displaying AI-executed commands in the terminal
+ */
+
+.terminal-command {
+  color: #00ff00; /* Bright green for commands */
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  padding: 2px 0;
+  display: block;
+}
+
+.terminal-command::before {
+  content: '# ';
+  color: #00ff00;
+  font-weight: bold;
+}
+
+.terminal-command-prompt {
+  color: #00ff00;
+  font-weight: bold;
+}
+
+.terminal-output {
+  color: #ffffff;
+  font-family: 'Courier New', Courier, monospace;
+  padding: 2px 0;
+  display: block;
+}
+
+/* Alternative styling for different command types */
+.terminal-command.user-command {
+  color: #00ffff; /* Cyan for user commands */
+}
+
+.terminal-command.ai-command {
+  color: #00ff00; /* Green for AI commands */
+}
+
+.terminal-command.system-command {
+  color: #ffff00; /* Yellow for system commands */
+}
+
+/* Hover effect for commands */
+.terminal-command:hover {
+  background-color: rgba(0, 255, 0, 0.1);
+  cursor: pointer;
+}
+
+/* Animation for new commands */
+@keyframes commandFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.terminal-command.new {
+  animation: commandFadeIn 0.3s ease-out;
+}
+
+/* Dark theme compatibility */
+.dark .terminal-command {
+  color: #00ff00;
+}
+
+.dark .terminal-output {
+  color: #e0e0e0;
+}
