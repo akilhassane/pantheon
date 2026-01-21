@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "mcp-pentest-forge": {
+    "pantheon": {
       "command": "node",
       "args": [
         "C:\\MCP\\mcp-server\\server.js"

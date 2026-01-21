@@ -53,7 +53,7 @@ Configuration for Cursor IDE to use the MCP server.
 5. **Verify the connection**:
    - Open Claude Desktop
    - Look for the 🔌 icon or MCP status indicator
-   - Check for "mcp-pentest-forge" in the available servers
+   - Check for "pantheon" in the available servers
    - Try using one of the tools (e.g., "Use port_scan tool to scan localhost")
 
 ### For Cursor

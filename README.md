@@ -1,327 +1,390 @@
-# MCP-Pentest-Forge 🔒⚡
+# Pantheon AI Platform
 
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Kali Linux](https://img.shields.io/badge/Kali-268BEE?style=for-the-badge&logo=kalilinux&logoColor=white)](https://www.kali.org/)
-[![Node.js](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+<div align="center">
 
-## 🎥 Demo Video
+![Pantheon Logo](./assets/pantheon-logo.png)
+<!-- TODO: Add Pantheon logo -->
 
-<img src="demo_final.gif" alt="MCP-Pentest-Forge Demo" width="100%">
+**A Multi-Agentic AI Platform for OS Interaction**
 
-## Overview
+[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/akilhassane/pantheon)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/akilhassane/pantheon?style=for-the-badge)](https://github.com/akilhassane/pantheon/stargazers)
 
-**MCP-Pentest-Forge** is a powerful Model Context Protocol (MCP) server that provides unrestricted access to a **Kali Linux pentesting environment**. This tool empowers security professionals and penetration testers to perform comprehensive security assessments using 200+ security tools through natural language commands.
+[🚀 Quick Start](#quick-start) • [📖 Documentation](#documentation) • [🎥 Demo](#demo) • [💬 Community](#community)
 
-## 🎯 Key Features
-
-- **🤖 AI-Powered Pentesting**: Execute complex security workflows using natural language
-- **🔓 Unrestricted Kali Access**: Full command-line access to Kali Linux with 200+ pentesting tools
-- **🌐 Real Network Scanning**: Host network mode allows scanning your actual network devices
-- **🛠️ Complete Tool Arsenal**: nmap, metasploit, burpsuite, sqlmap, nikto, and 200+ more tools
-- **📚 Built-in Knowledge Base**: Comprehensive pentesting methodologies and workflows
-- **🔄 Intelligent Automation**: AI automatically chains commands for complex multi-step tasks
-
-## 🚀 What Makes This Unique
-
-Unlike traditional pentesting tools, MCP-Pentest-Forge gives **AI complete autonomy** to:
-- Interpret your natural language requests
-- Select appropriate tools automatically
-- Chain multiple commands intelligently
-- Adapt strategy based on results
-- Execute complex multi-stage workflows
-
-**Example Natural Language Commands:**
-- "Discover all devices on my network"
-- "Find all vulnerabilities in 192.168.1.100"
-- "Test this website for SQL injection"
-- "Enumerate SMB shares on my network"
-
-The AI handles all the complexity—selecting tools, crafting commands, interpreting results, and adapting the approach.
-
-## ⚠️ Ethical Use Only
-
-This tool is designed exclusively for **authorized security testing and research purposes**. Users are responsible for:
-- Obtaining proper authorization before testing
-- Complying with applicable laws and regulations
-- Following responsible disclosure practices
-- Using the tool ethically and legally
-
-## 📖 Documentation
-
-### 🚀 **[Complete Setup Guide (SETUP.md)](SETUP.md)** - Start here!
-
-Comprehensive guides available:
-- 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md) - Complete n8n workflow integration
-- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md) - Remote console and cloud deployment
-- 🌐 [ngrok Setup Guide](docs/NGROK_SETUP.md) - Expose server to the internet
-- ⚡ [ngrok Quick Start](NGROK_QUICK_START.md) - 3-minute internet access setup
-- 📘 [API Reference](docs/API_REFERENCE.md) - Complete HTTP API documentation
-- 📺 [YouTube Resources](docs/YOUTUBE_RESOURCES.md) - Video tutorials and learning path
-
-## 📦 Installation
-
-> 📘 **For detailed setup instructions, see [SETUP.md](SETUP.md)**
-
-### Prerequisites
-
-- **Docker** and **Docker Compose** installed
-- **Git** for cloning the repository
-- For Windows: **WSL2** backend enabled in Docker Desktop
-
-### Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/akilhassane/mcp-pentest-forge.git
-
-# Navigate to the directory
-cd mcp-pentest-forge
-
-# Build and start both containers (MCP server + Kali Linux)
-docker-compose up -d
-
-# Check containers are running
-docker ps
-
-# View logs
-docker-compose logs -f
-```
-
-That's it! Both the MCP server and Kali Linux environment are now running.
-
-📘 **Next**: See [SETUP.md](SETUP.md) for integrating with Claude Desktop, Cursor IDE, or n8n.
-
-## 🎮 Usage
-
-### Dual Mode Operation
-
-This server supports **two operation modes**:
-
-1. **stdio Mode** (Default): For local Claude Desktop and Cursor IDE integration
-2. **HTTP Mode**: For n8n integration and remote console access
-
-See detailed guides:
-- 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md) - Complete n8n workflow integration
-- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md) - Remote console and cloud deployment
-
-### Integration with MCP Clients
-
-This server uses the **Model Context Protocol (MCP)** and communicates via stdio. Connect it to MCP-compatible clients:
-
-#### Claude Desktop Configuration
-
-Add to your Claude Desktop config file:
-
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`  
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
-**Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "pentest-forge": {
-      "command": "docker",
-      "args": [
-        "exec",
-        "-i",
-        "mcp-pentest-forge",
-        "node",
-        "/app/server.js"
-      ]
-    }
-  }
-}
-```
-
-### Available Tool: `kali_execute`
-
-The server provides a single powerful tool:
-
-**`kali_execute`** - Execute ANY command in Kali Linux with complete autonomy
-
-#### Natural Language Examples
-
-```
-👤 You: "Discover all devices on my network"
-
-🤖 AI: Executes:
-  - nmap -sn 192.168.1.0/24 to find hosts
-  - Parses results and extracts IPs
-  - For each IP: nmap -sV -O <IP> for detailed enumeration
-  - Aggregates and presents findings
-
-👤 You: "Test website for SQL injection"
-
-🤖 AI: Executes:
-  - Crawls site to find parameters
-  - Tests all parameters with sqlmap
-  - Enumerates databases if vulnerable
-  - Generates detailed report
-
-👤 You: "Find all open SMB shares on my network"
-
-🤖 AI: Executes:
-  - nmap -p 445 192.168.1.0/24 to find SMB hosts
-  - enum4linux -a on each host
-  - Lists accessible shares
-  - Reports accessible resources
-```
-
-### HTTP Mode (for n8n and Remote Access)
-
-To enable HTTP mode for n8n integration or remote access:
-
-```bash
-# Create environment file
-cp env.template .env
-
-# Edit .env and uncomment HTTP_PORT
-# HTTP_PORT=3000
-
-# Restart containers
-docker-compose restart
-
-# Test HTTP endpoint
-curl http://localhost:3000/
-curl http://localhost:3000/api/tools
-
-# Execute a command via HTTP
-curl -X POST http://localhost:3000/api/tools/kali_execute \
-  -H "Content-Type: application/json" \
-  -d '{"arguments": {"command": "nmap -sV 192.168.1.1"}}'
-```
-
-For complete n8n setup and remote access configuration, see:
-- 📘 [n8n Integration Guide](docs/N8N_INTEGRATION.md)
-- 📘 [Remote Access Guide](docs/REMOTE_ACCESS.md)
-
-**n8n Workflow**: Import `workflows/workflow-iterative.json` into n8n for autonomous pentesting!
-
-### Direct Container Access
-
-```bash
-# Access Kali Linux shell
-docker exec -it kali-pentest bash
-
-# Run commands directly in Kali
-docker exec kali-pentest nmap -sV 192.168.1.1
-
-# View MCP server logs
-docker logs -f mcp-pentest-forge
-
-# Restart containers
-docker-compose restart
-
-# Stop containers
-docker-compose down
-```
-
-## 🌐 Network Configuration
-
-### Host Network Mode
-
-The containers use **host network mode** for real network access:
-
-**✅ Advantages:**
-- Scan your actual network devices (not isolated Docker network)
-- All pentesting tools work with real network interfaces
-- No port mapping needed
-
-**⚠️ Considerations:**
-- Containers can access all host network resources
-- Works natively on Linux/macOS
-- Windows requires WSL2 backend for full functionality
-
-**🔐 Security Note:** Only use in controlled, authorized environments.
-
-## 🛠️ Available Pentesting Tools (200+)
-
-### Network Discovery & Scanning
-- **nmap, masscan, netdiscover, arp-scan**
-
-### Web Application Testing
-- **nikto, sqlmap, burpsuite, gobuster, ffuf, wpscan, dirb**
-
-### Password Attacks
-- **hydra, john, hashcat, medusa, crunch**
-
-### Exploitation
-- **metasploit, searchsploit, exploit-db**
-
-### OSINT & Reconnaissance
-- **theHarvester, maltego, recon-ng, sherlock, sublist3r**
-
-### Wireless Attacks
-- **aircrack-ng, kismet, reaver**
-
-### Forensics & Analysis
-- **volatility, binwalk, exiftool, strings**
-
-### Reverse Engineering
-- **ghidra, radare2, gdb**
-
-### Sniffing & Spoofing
-- **wireshark, tcpdump, ettercap, bettercap**
-
-And many more...
-
-## 🤝 Contributing
-
-We welcome contributions from the security research community! Here's how you can help:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit your changes**: `git commit -m 'Add amazing feature'`
-4. **Push to the branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
-
-Please ensure all contributions:
-- Align with ethical hacking principles
-- Follow responsible disclosure practices
-- Include appropriate documentation
-- Are tested in a safe environment
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) file for details
-
-## ⚖️ Legal Disclaimer
-
-**IMPORTANT:** This tool is intended for **educational and authorized security research purposes ONLY**.
-
-### Legal Requirements
-
-✅ **Always obtain written authorization** before testing any systems  
-✅ **Comply with all applicable laws** in your jurisdiction  
-✅ **Follow responsible disclosure** practices  
-✅ **Respect privacy and data protection** laws  
-
-### Prohibited Uses
-
-❌ Unauthorized access to systems or networks  
-❌ Malicious activities or attacks  
-❌ Violation of terms of service  
-❌ Any illegal activities  
-
-### Liability
-
-The authors and contributors of MCP-Pentest-Forge:
-- Are NOT responsible for any misuse of this tool
-- Do NOT condone illegal activities
-- Provide this tool "AS IS" without warranties
-- Disclaim all liability for damages resulting from use
-
-**By using this tool, you agree to use it legally, ethically, and responsibly.**
-
-## 🙏 Acknowledgments
-
-- **Inspired by [Network Chuck](https://www.youtube.com/@NetworkChuck)** - For making AI and cybersecurity accessible and inspiring this project
-- Built with the [Model Context Protocol](https://modelcontextprotocol.io/)
-- Powered by [Kali Linux](https://www.kali.org/)
-- Thanks to the amazing cybersecurity and open-source communities
+</div>
 
 ---
 
-**Built with ❤️ for ethical hackers and security researchers**
+## 🎯 What is Pantheon?
 
-**⭐ Star this repo if you find it useful!**
+**Pantheon** is a revolutionary multi-agentic AI platform that enables AI models to interact directly with operating systems. Think of it as giving AI assistants hands to actually perform tasks on your computer, not just suggest commands.
+
+### Key Capabilities
+
+- 🤖 **Multi-AI Support**: Works with OpenAI, Anthropic Claude, Google Gemini, and more
+- 🪟 **Windows Automation**: Full Windows OS control and automation (Linux/macOS coming soon)
+- 👥 **Real-time Collaboration**: Multiple users can work on the same project simultaneously
+- 🔐 **Secure & Isolated**: Each project runs in its own isolated environment
+- 🌐 **Web-Based**: Access from anywhere via your browser
+- 📊 **Usage Tracking**: Monitor API usage and costs in real-time
+
+---
+
+## 🎥 Demo
+
+![Pantheon Demo](./assets/demo.gif)
+<!-- TODO: Add demo GIF showing Pantheon in action -->
+
+### Watch the Full Demo
+
+[![Pantheon Demo Video](./assets/video-thumbnail.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
+<!-- TODO: Record and upload demo video -->
+
+---
+
+## ✨ Features
+
+### For Users
+
+- **Natural Language Control**: Tell AI what you want, it figures out how to do it
+- **Visual Feedback**: See exactly what's happening on the Windows desktop
+- **Collaborative Workspaces**: Work together with your team in real-time
+- **Project Management**: Organize work into isolated projects
+- **Multi-Model Support**: Switch between different AI models seamlessly
+
+### For Developers
+
+- **RESTful API**: Integrate Pantheon into your applications
+- **WebSocket Support**: Real-time updates and collaboration
+- **Docker-Based**: Easy deployment and scaling
+- **Extensible**: Add support for new OS types and tools
+- **Well-Documented**: Comprehensive API documentation
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker 20.10+ and Docker Compose 2.0+
+- 20GB free disk space
+- Supabase account (free tier works)
+- At least one AI provider API key
+
+### Installation (5 minutes)
+
+#### Linux/macOS
+
+```bash
+curl -O https://raw.githubusercontent.com/akilhassane/pantheon/main/install-pantheon.sh
+chmod +x install-pantheon.sh
+bash install-pantheon.sh
+```
+
+#### Windows
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/akilhassane/pantheon/main/install-pantheon.ps1" -OutFile "install-pantheon.ps1"
+powershell -ExecutionPolicy Bypass -File install-pantheon.ps1
+```
+
+### Configuration
+
+1. Edit the `.env` file with your credentials:
+   ```env
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   
+   OPENAI_API_KEY=sk-...
+   # or
+   ANTHROPIC_API_KEY=sk-ant-...
+   # or
+   GEMINI_API_KEY=AIza...
+   ```
+
+2. Restart services:
+   ```bash
+   docker-compose -f docker-compose.production.yml restart
+   ```
+
+3. Open http://localhost:3000 in your browser
+
+**That's it!** 🎉
+
+For detailed installation instructions, see [Installation Guide](./docs/INSTALLATION_GUIDE.md).
+
+---
+
+## 📖 Documentation
+
+### Getting Started
+
+- 📘 [Installation Guide](./docs/INSTALLATION_GUIDE.md) - Complete installation instructions
+- 📗 [User Guide](./docs/USER_GUIDE.md) - Learn how to use Pantheon
+- 📙 [Quick Start Tutorial](./docs/QUICK_START.md) - Get up and running in 10 minutes
+
+### Advanced
+
+- 🔧 [API Reference](./docs/API_REFERENCE.md) - Complete API documentation
+- 🏗️ [Architecture](./docs/ARCHITECTURE.md) - System architecture and design
+- 🔌 [Integration Guide](./docs/INTEGRATION.md) - Integrate Pantheon with your apps
+- 🐛 [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+
+### Development
+
+- 🛠️ [Development Guide](./docs/DEVELOPMENT.md) - Set up development environment
+- 🧪 [Testing Guide](./docs/TESTING.md) - Run tests and contribute
+- 📦 [Deployment Guide](./docs/DEPLOYMENT.md) - Deploy to production
+
+---
+
+## 🏗️ Architecture
+
+Pantheon consists of three main components:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Frontend                            │
+│                    (Next.js + React)                        │
+│                   http://localhost:3000                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         Backend                             │
+│                    (Node.js + Express)                      │
+│                   http://localhost:3002                     │
+│                                                             │
+│  • AI Provider Integration (OpenAI, Anthropic, etc.)       │
+│  • Project Management                                       │
+│  • Session Management                                       │
+│  • WebSocket Server                                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Windows Tools API                        │
+│                    (Node.js + Python)                       │
+│                   http://localhost:3003                     │
+│                                                             │
+│  • Windows Automation Tools                                 │
+│  • Screenshot & OCR                                         │
+│  • Mouse & Keyboard Control                                 │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Windows Projects                         │
+│              (Docker containers with Windows)               │
+│                                                             │
+│  • Isolated Windows environments                            │
+│  • Per-project storage                                      │
+│  • VNC access for visual feedback                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+For detailed architecture documentation, see [Architecture Guide](./docs/ARCHITECTURE.md).
+
+---
+
+## 🎯 Use Cases
+
+### Automation & Testing
+
+- Automate repetitive Windows tasks
+- Test Windows applications
+- Create automated workflows
+- Perform system administration tasks
+
+### Development & DevOps
+
+- Set up development environments
+- Deploy applications
+- Run automated tests
+- Monitor system health
+
+### Research & Education
+
+- Study AI-OS interaction
+- Learn about system automation
+- Experiment with different AI models
+- Build custom automation tools
+
+### Business & Productivity
+
+- Automate data entry
+- Generate reports
+- Process documents
+- Manage multiple systems
+
+---
+
+## 🛠️ Technology Stack
+
+### Frontend
+
+- **Framework**: Next.js 14 (React 18)
+- **UI Library**: Radix UI + Tailwind CSS
+- **State Management**: React Context + Hooks
+- **Real-time**: WebSocket
+- **Terminal**: xterm.js
+
+### Backend
+
+- **Runtime**: Node.js 18
+- **Framework**: Express.js
+- **Database**: Supabase (PostgreSQL)
+- **AI Integration**: Native SDKs for each provider
+- **Container Management**: Dockerode
+
+### Infrastructure
+
+- **Containerization**: Docker + Docker Compose
+- **OS Virtualization**: Windows containers (QEMU/KVM)
+- **Networking**: Docker bridge networks
+- **Storage**: Docker volumes
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Here's how you can help:
+
+### Ways to Contribute
+
+- 🐛 Report bugs and issues
+- 💡 Suggest new features
+- 📝 Improve documentation
+- 🔧 Submit pull requests
+- ⭐ Star the repository
+- 📢 Spread the word
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/akilhassane/pantheon.git
+cd pantheon
+
+# Install dependencies
+npm install
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Start development servers
+docker-compose up -d
+```
+
+For detailed development instructions, see [Development Guide](./docs/DEVELOPMENT.md).
+
+---
+
+## 📊 Project Status
+
+### Current Status
+
+- ✅ Windows OS support (fully functional)
+- ✅ Multi-AI provider support
+- ✅ Real-time collaboration
+- ✅ Project management
+- ✅ Web-based interface
+- ✅ Docker deployment
+
+### Roadmap
+
+- 🚧 Linux OS support (Q2 2025)
+- 🚧 macOS support (Q3 2025)
+- 📋 Mobile app (Q4 2025)
+- 📋 Plugin system (Q4 2025)
+- 📋 Marketplace for automation scripts (2026)
+
+---
+
+## 💬 Community
+
+Join our growing community:
+
+- 💬 **Discord**: [Join our server](#) <!-- TODO: Add Discord link -->
+- 🐦 **Twitter**: [@PantheonAI](#) <!-- TODO: Add Twitter link -->
+- 📧 **Email**: support@pantheon.ai
+- 🐛 **GitHub Issues**: [Report bugs](https://github.com/akilhassane/pantheon/issues)
+- 📚 **Documentation**: [Read the docs](https://docs.pantheon.ai)
+
+---
+
+## 📄 License
+
+Pantheon is open-source software licensed under the [MIT License](./LICENSE).
+
+```
+MIT License
+
+Copyright (c) 2025 Akil Hassane
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 🙏 Acknowledgments
+
+- Thanks to all contributors who have helped build Pantheon
+- Inspired by the Model Context Protocol (MCP)
+- Built with amazing open-source technologies
+
+---
+
+## ⚠️ Disclaimer
+
+Pantheon provides powerful automation capabilities. Users are responsible for:
+
+- Using the platform ethically and legally
+- Securing their API keys and credentials
+- Complying with AI provider terms of service
+- Ensuring proper authorization for automated tasks
+- Backing up important data
+
+**Use at your own risk. The authors are not liable for any damages or misuse.**
+
+---
+
+## 📈 Stats
+
+![GitHub stars](https://img.shields.io/github/stars/akilhassane/pantheon?style=social)
+![GitHub forks](https://img.shields.io/github/forks/akilhassane/pantheon?style=social)
+![GitHub watchers](https://img.shields.io/github/watchers/akilhassane/pantheon?style=social)
+
+![GitHub issues](https://img.shields.io/github/issues/akilhassane/pantheon)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/akilhassane/pantheon)
+![GitHub last commit](https://img.shields.io/github/last-commit/akilhassane/pantheon)
+
+---
+
+<div align="center">
+
+**Built with ❤️ by [Akil Hassane](https://github.com/akilhassane)**
+
+[⬆ Back to Top](#pantheon-ai-platform)
+
+</div>

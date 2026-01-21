@@ -1,13 +1,13 @@
 {
   "mcpServers": {
-    "mcp-pentest-forge": {
+    "pantheon": {
       "command": "docker",
       "args": [
         "run",
         "-i",
         "--rm",
-        "--network", "mcp-pentest-forge-network",
-        "mcp-server-mcp-pentest-forge"
+        "--network", "pantheon-network",
+        "pantheon-mcp-server"
       ],
       "env": {
         "NODE_ENV": "production"

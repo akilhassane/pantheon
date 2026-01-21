@@ -1,256 +1,352 @@
 #!/bin/bash
+
+###############################################################################
 # Pantheon AI Platform - Installation Test Script
-# This script tests the installation and verifies all components are working
+# 
+# This script tests your Pantheon installation and diagnoses common issues
+#
+# Usage:
+#   bash test-installation.sh
+###############################################################################
 
 set -e
 
-# Color functions
-print_success() { echo -e "\033[0;32m✓ $1\033[0m"; }
-print_info() { echo -e "\033[0;36mℹ $1\033[0m"; }
-print_warning() { echo -e "\033[0;33m⚠ $1\033[0m"; }
-print_error() { echo -e "\033[0;31m✗ $1\033[0m"; }
-print_test() { echo -e "\033[0;35m▶ $1\033[0m"; }
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Banner
-cat << "EOF"
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║         PANTHEON AI PLATFORM - INSTALLATION TEST              ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
-EOF
+# Test results
+TESTS_PASSED=0
+TESTS_FAILED=0
+TESTS_WARNING=0
 
-echo ""
-print_info "Starting installation tests..."
-echo ""
+print_test() {
+    echo -e "${BLUE}[TEST]${NC} $1"
+}
 
-# Test 1: Check Docker
-print_test "Test 1: Checking Docker installation..."
-if command -v docker &> /dev/null; then
-    DOCKER_VERSION=$(docker --version)
-    print_success "Docker installed: $DOCKER_VERSION"
+print_pass() {
+    echo -e "${GREEN}[PASS]${NC} $1"
+    ((TESTS_PASSED++))
+}
+
+print_fail() {
+    echo -e "${RED}[FAIL]${NC} $1"
+    ((TESTS_FAILED++))
+}
+
+print_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+    ((TESTS_WARNING++))
+}
+
+print_header() {
+    echo ""
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}  $1${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+}
+
+# Test 1: Docker Installation
+test_docker() {
+    print_test "Checking Docker installation..."
     
-    if docker info &> /dev/null; then
-        print_success "Docker daemon is running"
+    if command -v docker >/dev/null 2>&1; then
+        DOCKER_VERSION=$(docker --version | grep -oP '\d+\.\d+' | head -1)
+        print_pass "Docker $DOCKER_VERSION is installed"
     else
-        print_error "Docker daemon is not running"
-        exit 1
+        print_fail "Docker is not installed"
+        return 1
     fi
-else
-    print_error "Docker is not installed"
-    exit 1
-fi
+}
 
-# Test 2: Check Docker Compose
-print_test "Test 2: Checking Docker Compose..."
-if command -v docker-compose &> /dev/null; then
-    COMPOSE_VERSION=$(docker-compose --version)
-    print_success "Docker Compose installed: $COMPOSE_VERSION"
-elif docker compose version &> /dev/null; then
-    COMPOSE_VERSION=$(docker compose version)
-    print_success "Docker Compose (plugin) installed: $COMPOSE_VERSION"
-else
-    print_error "Docker Compose is not installed"
-    exit 1
-fi
-
-# Test 3: Check .env file
-print_test "Test 3: Checking environment configuration..."
-if [ -f .env ]; then
-    print_success ".env file exists"
+# Test 2: Docker Compose
+test_docker_compose() {
+    print_test "Checking Docker Compose..."
     
-    if grep -q "your_.*_here" .env; then
-        print_warning ".env file contains placeholder values - needs configuration"
+    if docker compose version >/dev/null 2>&1; then
+        COMPOSE_VERSION=$(docker compose version | grep -oP '\d+\.\d+' | head -1)
+        print_pass "Docker Compose $COMPOSE_VERSION is available"
     else
-        print_success ".env file is configured"
+        print_fail "Docker Compose is not available"
+        return 1
     fi
+}
+
+# Test 3: Docker Daemon
+test_docker_daemon() {
+    print_test "Checking Docker daemon..."
     
-    # Check required variables
-    source .env
-    
-    if [ -z "$SUPABASE_URL" ]; then
-        print_error "SUPABASE_URL is not set"
+    if docker ps >/dev/null 2>&1; then
+        print_pass "Docker daemon is running"
     else
-        print_success "SUPABASE_URL is set"
+        print_fail "Docker daemon is not running"
+        return 1
     fi
+}
+
+# Test 4: Environment File
+test_env_file() {
+    print_test "Checking environment file..."
     
-    if [ -z "$SUPABASE_ANON_KEY" ]; then
-        print_error "SUPABASE_ANON_KEY is not set"
-    else
-        print_success "SUPABASE_ANON_KEY is set"
-    fi
-    
-    if [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
-        print_warning "No AI provider API key is set"
-    else
-        print_success "At least one AI provider API key is set"
-    fi
-else
-    print_error ".env file not found"
-    exit 1
-fi
-
-# Test 4: Check docker-compose.yml
-print_test "Test 4: Checking Docker Compose configuration..."
-if [ -f docker-compose.yml ]; then
-    print_success "docker-compose.yml exists"
-    
-    # Validate docker-compose.yml
-    if docker-compose config &> /dev/null; then
-        print_success "docker-compose.yml is valid"
-    else
-        print_error "docker-compose.yml has errors"
-        exit 1
-    fi
-else
-    print_error "docker-compose.yml not found"
-    exit 1
-fi
-
-# Test 5: Check Docker images
-print_test "Test 5: Checking Docker images..."
-IMAGES_FOUND=0
-
-if docker images | grep -q "akilhassane/pantheon.*frontend"; then
-    print_success "Frontend image found"
-    ((IMAGES_FOUND++))
-else
-    print_warning "Frontend image not found - will be pulled on first start"
-fi
-
-if docker images | grep -q "akilhassane/pantheon.*backend"; then
-    print_success "Backend image found"
-    ((IMAGES_FOUND++))
-else
-    print_warning "Backend image not found - will be pulled on first start"
-fi
-
-if docker images | grep -q "akilhassane/pantheon.*windows-tools"; then
-    print_success "Windows Tools API image found"
-    ((IMAGES_FOUND++))
-else
-    print_warning "Windows Tools API image not found - optional"
-fi
-
-if [ $IMAGES_FOUND -eq 0 ]; then
-    print_warning "No images found - run './start.sh' to pull images"
-fi
-
-# Test 6: Check helper scripts
-print_test "Test 6: Checking helper scripts..."
-SCRIPTS=("start.sh" "stop.sh" "logs.sh" "update.sh" "init-database.sh")
-for script in "${SCRIPTS[@]}"; do
-    if [ -f "$script" ]; then
-        if [ -x "$script" ]; then
-            print_success "$script exists and is executable"
+    if [ -f .env ]; then
+        print_pass ".env file exists"
+        
+        # Check for required variables
+        if grep -q "SUPABASE_URL=" .env && ! grep -q "SUPABASE_URL=https://your-project" .env; then
+            print_pass "Supabase URL is configured"
         else
-            print_warning "$script exists but is not executable"
-            chmod +x "$script"
-            print_success "Made $script executable"
+            print_warn "Supabase URL needs to be configured in .env"
+        fi
+        
+        if grep -q "SUPABASE_ANON_KEY=" .env && ! grep -q "SUPABASE_ANON_KEY=your-anon-key" .env; then
+            print_pass "Supabase anon key is configured"
+        else
+            print_warn "Supabase anon key needs to be configured in .env"
+        fi
+        
+        # Check for at least one AI provider
+        if grep -q "OPENAI_API_KEY=sk-" .env || \
+           grep -q "ANTHROPIC_API_KEY=sk-ant-" .env || \
+           grep -q "GEMINI_API_KEY=AIza" .env || \
+           grep -q "OPENROUTER_API_KEY=sk-or-" .env; then
+            print_pass "At least one AI provider API key is configured"
+        else
+            print_warn "No AI provider API keys configured in .env"
         fi
     else
-        print_error "$script not found"
+        print_fail ".env file does not exist"
+        return 1
     fi
-done
+}
 
-# Test 7: Check system resources
-print_test "Test 7: Checking system resources..."
+# Test 5: Docker Images
+test_docker_images() {
+    print_test "Checking Docker images..."
+    
+    local images=(
+        "akilhassane/pantheon:frontend"
+        "akilhassane/pantheon:backend"
+        "akilhassane/pantheon:windows-tools-api"
+    )
+    
+    for image in "${images[@]}"; do
+        if docker images | grep -q "${image}"; then
+            print_pass "Image ${image} is available"
+        else
+            print_fail "Image ${image} is not available"
+        fi
+    done
+}
 
-# Check memory
-if [ "$(uname)" == "Linux" ]; then
-    MEMORY_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-    MEMORY_GB=$((MEMORY_KB / 1024 / 1024))
-elif [ "$(uname)" == "Darwin" ]; then
-    MEMORY_BYTES=$(sysctl -n hw.memsize)
-    MEMORY_GB=$((MEMORY_BYTES / 1024 / 1024 / 1024))
-fi
-
-if [ "$MEMORY_GB" -lt 8 ]; then
-    print_error "System has ${MEMORY_GB}GB RAM - minimum 8GB required"
-elif [ "$MEMORY_GB" -lt 16 ]; then
-    print_warning "System has ${MEMORY_GB}GB RAM - 16GB+ recommended"
-else
-    print_success "System has ${MEMORY_GB}GB RAM"
-fi
-
-# Check disk space
-DISK_FREE=$(df -BG . | tail -1 | awk '{print $4}' | sed 's/G//')
-if [ "$DISK_FREE" -lt 50 ]; then
-    print_error "Only ${DISK_FREE}GB free disk space - minimum 50GB required"
-elif [ "$DISK_FREE" -lt 100 ]; then
-    print_warning "Only ${DISK_FREE}GB free disk space - 100GB+ recommended"
-else
-    print_success "${DISK_FREE}GB free disk space available"
-fi
-
-# Test 8: Test network connectivity
-print_test "Test 8: Testing network connectivity..."
-
-if ping -c 1 google.com &> /dev/null; then
-    print_success "Internet connection available"
-else
-    print_warning "Cannot reach internet - may affect image downloads"
-fi
-
-if curl -s https://hub.docker.com &> /dev/null; then
-    print_success "Docker Hub is accessible"
-else
-    print_warning "Cannot reach Docker Hub - may affect image downloads"
-fi
-
-# Test 9: Check if services are running
-print_test "Test 9: Checking if services are running..."
-
-if docker-compose ps | grep -q "Up"; then
-    print_success "Some services are running"
-    docker-compose ps
-else
-    print_info "No services are currently running"
-    print_info "Run './start.sh' to start services"
-fi
-
-# Test 10: Test Supabase connection (if configured)
-print_test "Test 10: Testing Supabase connection..."
-
-if [ ! -z "$SUPABASE_URL" ] && [ "$SUPABASE_URL" != "your_supabase_url_here" ]; then
-    if curl -s -o /dev/null -w "%{http_code}" "$SUPABASE_URL" | grep -q "200\|301\|302"; then
-        print_success "Supabase URL is accessible"
+# Test 6: Running Containers
+test_containers() {
+    print_test "Checking running containers..."
+    
+    if docker ps | grep -q "pantheon-frontend"; then
+        print_pass "Frontend container is running"
     else
-        print_warning "Cannot reach Supabase URL - check your configuration"
+        print_fail "Frontend container is not running"
     fi
-else
-    print_info "Supabase URL not configured - skipping connection test"
-fi
+    
+    if docker ps | grep -q "pantheon-backend"; then
+        print_pass "Backend container is running"
+    else
+        print_fail "Backend container is not running"
+    fi
+    
+    if docker ps | grep -q "pantheon-windows-tools"; then
+        print_pass "Windows Tools container is running"
+    else
+        print_fail "Windows Tools container is not running"
+    fi
+}
 
-# Summary
-echo ""
-echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║                      TEST SUMMARY                             ║"
-echo "╚═══════════════════════════════════════════════════════════════╝"
-echo ""
+# Test 7: Container Health
+test_container_health() {
+    print_test "Checking container health..."
+    
+    # Frontend
+    if docker ps --filter "name=pantheon-frontend" --format "{{.Status}}" | grep -q "healthy"; then
+        print_pass "Frontend container is healthy"
+    else
+        print_warn "Frontend container health check failed or still starting"
+    fi
+    
+    # Backend
+    if docker ps --filter "name=pantheon-backend" --format "{{.Status}}" | grep -q "healthy"; then
+        print_pass "Backend container is healthy"
+    else
+        print_warn "Backend container health check failed or still starting"
+    fi
+    
+    # Windows Tools
+    if docker ps --filter "name=pantheon-windows-tools" --format "{{.Status}}" | grep -q "healthy"; then
+        print_pass "Windows Tools container is healthy"
+    else
+        print_warn "Windows Tools container health check failed or still starting"
+    fi
+}
 
-if [ $IMAGES_FOUND -ge 2 ]; then
-    print_success "Installation appears to be complete!"
+# Test 8: Port Availability
+test_ports() {
+    print_test "Checking port availability..."
+    
+    # Frontend (3000)
+    if curl -f http://localhost:3000 >/dev/null 2>&1; then
+        print_pass "Frontend is accessible on port 3000"
+    else
+        print_fail "Frontend is not accessible on port 3000"
+    fi
+    
+    # Backend (3002)
+    if curl -f http://localhost:3002/health >/dev/null 2>&1; then
+        print_pass "Backend is accessible on port 3002"
+    else
+        print_fail "Backend is not accessible on port 3002"
+    fi
+    
+    # Windows Tools (3003)
+    if curl -f http://localhost:3003/health >/dev/null 2>&1; then
+        print_pass "Windows Tools API is accessible on port 3003"
+    else
+        print_fail "Windows Tools API is not accessible on port 3003"
+    fi
+}
+
+# Test 9: Network Connectivity
+test_network() {
+    print_test "Checking network connectivity..."
+    
+    if docker network ls | grep -q "pantheon-network"; then
+        print_pass "Pantheon network exists"
+    else
+        print_fail "Pantheon network does not exist"
+    fi
+}
+
+# Test 10: Volumes
+test_volumes() {
+    print_test "Checking Docker volumes..."
+    
+    if docker volume ls | grep -q "pantheon-data"; then
+        print_pass "Data volume exists"
+    else
+        print_warn "Data volume does not exist"
+    fi
+    
+    if docker volume ls | grep -q "pantheon-windows-files"; then
+        print_pass "Windows files volume exists"
+    else
+        print_warn "Windows files volume does not exist"
+    fi
+    
+    if docker volume ls | grep -q "pantheon-workspaces"; then
+        print_pass "Workspaces volume exists"
+    else
+        print_warn "Workspaces volume does not exist"
+    fi
+}
+
+# Test 11: API Endpoints
+test_api_endpoints() {
+    print_test "Testing API endpoints..."
+    
+    # Backend health
+    BACKEND_HEALTH=$(curl -s http://localhost:3002/health 2>/dev/null)
+    if echo "$BACKEND_HEALTH" | grep -q "ok"; then
+        print_pass "Backend health endpoint responds correctly"
+    else
+        print_fail "Backend health endpoint not responding correctly"
+    fi
+    
+    # Windows Tools health
+    TOOLS_HEALTH=$(curl -s http://localhost:3003/health 2>/dev/null)
+    if echo "$TOOLS_HEALTH" | grep -q "healthy"; then
+        print_pass "Windows Tools health endpoint responds correctly"
+    else
+        print_fail "Windows Tools health endpoint not responding correctly"
+    fi
+}
+
+# Test 12: Disk Space
+test_disk_space() {
+    print_test "Checking disk space..."
+    
+    AVAILABLE_SPACE=$(df -BG . | awk 'NR==2 {print $4}' | sed 's/G//')
+    
+    if [ "$AVAILABLE_SPACE" -ge 10 ]; then
+        print_pass "Sufficient disk space available (${AVAILABLE_SPACE}GB)"
+    else
+        print_warn "Low disk space: ${AVAILABLE_SPACE}GB available (10GB+ recommended)"
+    fi
+}
+
+# Print summary
+print_summary() {
+    print_header "Test Summary"
+    
+    echo "Tests Passed:  $TESTS_PASSED"
+    echo "Tests Failed:  $TESTS_FAILED"
+    echo "Warnings:      $TESTS_WARNING"
     echo ""
-    print_info "Next steps:"
-    echo "  1. Ensure .env is configured with your API keys"
-    echo "  2. Run: ./init-database.sh"
-    echo "  3. Run: ./start.sh"
-    echo "  4. Open browser: http://localhost:3000"
-else
-    print_warning "Installation is incomplete"
+    
+    if [ $TESTS_FAILED -eq 0 ]; then
+        echo -e "${GREEN}✓ All critical tests passed!${NC}"
+        echo ""
+        echo "Your Pantheon installation appears to be working correctly."
+        echo "Access Pantheon at: http://localhost:3000"
+        echo ""
+        
+        if [ $TESTS_WARNING -gt 0 ]; then
+            echo -e "${YELLOW}⚠ There are $TESTS_WARNING warnings that should be addressed.${NC}"
+            echo ""
+        fi
+    else
+        echo -e "${RED}✗ $TESTS_FAILED tests failed!${NC}"
+        echo ""
+        echo "Your Pantheon installation has issues that need to be fixed."
+        echo ""
+        echo "Common fixes:"
+        echo "  1. Make sure Docker is running"
+        echo "  2. Configure .env file with your credentials"
+        echo "  3. Restart services: docker-compose -f docker-compose.production.yml restart"
+        echo "  4. Check logs: docker-compose -f docker-compose.production.yml logs"
+        echo ""
+        echo "For more help, see: ./docs/TROUBLESHOOTING.md"
+        echo ""
+    fi
+}
+
+# Main test flow
+main() {
+    clear
+    
+    print_header "Pantheon Installation Test"
+    
+    echo "This script will test your Pantheon installation and diagnose issues."
     echo ""
-    print_info "Next steps:"
-    echo "  1. Configure .env with your API keys"
-    echo "  2. Run: ./start.sh (will pull missing images)"
-    echo "  3. Run: ./init-database.sh"
-    echo "  4. Open browser: http://localhost:3000"
-fi
+    
+    # Run all tests
+    test_docker
+    test_docker_compose
+    test_docker_daemon
+    test_env_file
+    test_docker_images
+    test_containers
+    test_container_health
+    test_ports
+    test_network
+    test_volumes
+    test_api_endpoints
+    test_disk_space
+    
+    # Print summary
+    print_summary
+}
 
-echo ""
-print_info "For detailed documentation, see:"
-echo "  - INSTALL.md - Installation guide"
-echo "  - USER_GUIDE.md - User manual"
-echo "  - QUICK_START_GUIDE.md - Quick start"
-echo ""
-
+# Run main function
+main
