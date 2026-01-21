@@ -92,21 +92,25 @@ powershell -ExecutionPolicy Bypass -File install-pantheon.ps1
 
 ### Configuration
 
-The installer will automatically:
-1. Pull all Docker images from Docker Hub
-2. Create a default configuration
-3. Start all services
+1. Edit the `.env` file with your credentials:
+   ```env
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   
+   OPENAI_API_KEY=sk-...
+   # or
+   ANTHROPIC_API_KEY=sk-ant-...
+   # or
+   GEMINI_API_KEY=AIza...
+   ```
 
-**No manual configuration needed!** The system will run with default settings.
+2. Restart services:
+   ```bash
+   docker-compose -f docker-compose.production.yml restart
+   ```
 
-To add your own API keys later (optional):
-1. Edit `.env` file
-2. Add your Supabase credentials and AI provider API keys
-3. Restart: `docker-compose -f docker-compose.production.yml restart`
-
-### Access
-
-Once installation completes, open http://localhost:3000 in your browser.
+3. Open http://localhost:3000 in your browser
 
 **That's it!** 🎉
 
@@ -305,8 +309,11 @@ For detailed development instructions, see [Development Guide](./docs/DEVELOPMEN
 
 Join our growing community:
 
+- 💬 **Discord**: [Join our server](#) <!-- TODO: Add Discord link -->
+- 🐦 **Twitter**: [@PantheonAI](#) <!-- TODO: Add Twitter link -->
+- 📧 **Email**: support@pantheon.ai
 - 🐛 **GitHub Issues**: [Report bugs](https://github.com/akilhassane/pantheon/issues)
-- 📚 **Documentation**: Check the `docs/` folder for guides
+- 📚 **Documentation**: [Read the docs](https://docs.pantheon.ai)
 
 ---
 
