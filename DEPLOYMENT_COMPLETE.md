@@ -14,7 +14,7 @@ All core images successfully pushed to Docker Hub:
 - ✅ Complete documentation (60,000+ words)
 - ✅ Installation scripts for all platforms
 - ✅ Build and deployment automation
-- ✅ Repository: https://github.com/akilhassane/mcp-pentest-forge
+- ✅ Repository: https://github.com/akilhassane/pantheon
 
 ---
 
@@ -75,15 +75,15 @@ Features:
 • Easy file sharing
 
 Quick Start:
-Windows: irm https://raw.githubusercontent.com/akilhassane/mcp-pentest-forge/master/install.ps1 | iex
-Linux/macOS: curl -fsSL https://raw.githubusercontent.com/akilhassane/mcp-pentest-forge/master/install.sh | bash
+Windows: irm https://raw.githubusercontent.com/akilhassane/pantheon/master/install.ps1 | iex
+Linux/macOS: curl -fsSL https://raw.githubusercontent.com/akilhassane/pantheon/master/install.sh | bash
 
-Documentation: https://github.com/akilhassane/mcp-pentest-forge
+Documentation: https://github.com/akilhassane/pantheon
 ```
 
 ### 2. Create GitHub Release (5 minutes)
 
-1. Go to https://github.com/akilhassane/mcp-pentest-forge/releases
+1. Go to https://github.com/akilhassane/pantheon/releases
 2. Click "Create a new release"
 3. Tag: `v1.0.0`
 4. Title: `Pantheon AI Platform v1.0.0 - Initial Release`
@@ -207,7 +207,7 @@ Users can:
 - Password: outstanding
 
 **GitHub:**
-- Repository: https://github.com/akilhassane/mcp-pentest-forge
+- Repository: https://github.com/akilhassane/pantheon
 - Username: akilhassane
 - Password: outstandeDtimelapse
 
@@ -276,5 +276,5 @@ You've successfully deployed a complete, production-ready AI platform with:
 
 **Deployment Completed:** January 21, 2025
 **Status:** Production Ready
-**Repository:** https://github.com/akilhassane/mcp-pentest-forge
+**Repository:** https://github.com/akilhassane/pantheon
 **Docker Hub:** https://hub.docker.com/r/akilhassane/pantheon
