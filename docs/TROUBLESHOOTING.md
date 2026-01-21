@@ -529,7 +529,7 @@ docker logs pantheon-windows-tools
    ```
 
 2. **Check disk space**:
-   - Windows containers need 20GB+ per project
+   - Windows containers need 64GB+ total
    - Run: `df -h`
 
 3. **Restart Windows Tools API**:

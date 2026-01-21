@@ -379,7 +379,7 @@ A: Common causes:
 A: Yes, but each project requires:
 - 4 CPU cores
 - 8GB RAM
-- 20GB disk space
+- 64GB disk space
 
 **Q: How do I backup my project?**
 

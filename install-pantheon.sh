@@ -109,10 +109,10 @@ check_requirements() {
     
     # Check disk space
     AVAILABLE_SPACE=$(df -BG . | awk 'NR==2 {print $4}' | sed 's/G//')
-    if [ "$AVAILABLE_SPACE" -ge 20 ]; then
+    if [ "$AVAILABLE_SPACE" -ge 64 ]; then
         print_success "Sufficient disk space available (${AVAILABLE_SPACE}GB)"
     else
-        print_warning "Low disk space: ${AVAILABLE_SPACE}GB available (20GB recommended)"
+        print_warning "Low disk space: ${AVAILABLE_SPACE}GB available (64GB recommended)"
     fi
     
     # Check internet connection

@@ -236,7 +236,7 @@ curl -X POST http://localhost:3002/api/sessions \
 ### Minimum System
 - 8GB RAM
 - 4 CPU cores
-- 20GB free disk space
+- 64GB free disk space
 
 ### Recommended System
 - 16GB RAM

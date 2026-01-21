@@ -69,7 +69,7 @@
 ### Prerequisites
 
 - Docker 20.10+ and Docker Compose 2.0+
-- 20GB free disk space
+- 64GB free disk space
 - Supabase account (free tier works)
 - At least one AI provider API key
 

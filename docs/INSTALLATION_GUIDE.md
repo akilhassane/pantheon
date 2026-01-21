@@ -43,7 +43,7 @@
 | **Docker** | Version 20.10 or higher |
 | **Docker Compose** | Version 2.0 or higher |
 | **RAM** | 8GB minimum, 16GB recommended |
-| **Disk Space** | 20GB free space |
+| **Disk Space** | 64GB free space |
 | **CPU** | 4 cores minimum, 8 cores recommended |
 | **Internet** | Stable broadband connection |
 
@@ -60,7 +60,7 @@
 Before installing Pantheon, ensure you have:
 
 - [ ] Docker and Docker Compose installed and running
-- [ ] At least 20GB of free disk space
+- [ ] At least 64GB of free disk space
 - [ ] A Supabase account (free tier works) - [Sign up here](https://supabase.com)
 - [ ] At least one AI provider API key:
   - [ ] OpenAI API key ([Get it here](https://platform.openai.com/api-keys))
