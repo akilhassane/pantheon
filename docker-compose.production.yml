@@ -1,0 +1,118 @@
+version: '3.8'
+
+# Pantheon AI Platform - Production Docker Compose Configuration
+# This file uses pre-built images from Docker Hub for easy deployment
+
+services:
+  # Frontend - Next.js web application
+  frontend:
+    image: akilhassane/pantheon:frontend
+    container_name: pantheon-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Supabase Configuration (Public)
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      # Backend API URL
+      - NEXT_PUBLIC_API_URL=http://localhost:3002
+      # Optional: Analytics
+      - NEXT_PUBLIC_ANALYTICS_ID=${ANALYTICS_ID:-}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend - Node.js API server
+  backend:
+    image: akilhassane/pantheon:backend
+    container_name: pantheon-backend
+    ports:
+      - "3002:3002"
+    environment:
+      # Supabase Configuration (Server-side)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      
+      # AI Provider API Keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - COHERE_API_KEY=${COHERE_API_KEY:-}
+      
+      # Server Configuration
+      - PORT=3002
+      - NODE_ENV=production
+      - DEBUG=${DEBUG:-false}
+      
+      # MCP Configuration
+      - MCP_MASTER_SECRET=${MCP_MASTER_SECRET:-}
+      - HOST_WINDOWS_VM_FILES_PATH=${HOST_WINDOWS_VM_FILES_PATH:-/app/windows-vm-files}
+    volumes:
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent data storage
+      - pantheon-data:/app/data
+      # Windows VM files (for Windows projects)
+      - pantheon-windows-files:/app/windows-vm-files
+      # Project workspaces
+      - pantheon-workspaces:/app/workspaces
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Windows Tools API - Provides Windows-specific tools
+  windows-tools-api:
+    image: akilhassane/pantheon:windows-tools-api
+    container_name: pantheon-windows-tools
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  pantheon-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  # Persistent data storage
+  pantheon-data:
+    driver: local
+  
+  # Windows VM files storage
+  pantheon-windows-files:
+    driver: local
+  
+  # Project workspaces
+  pantheon-workspaces:
+    driver: local
