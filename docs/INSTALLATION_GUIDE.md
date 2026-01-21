@@ -390,10 +390,10 @@ If you're still having issues:
    bash test-installation.sh
    ```
 
-3. **Join our community**:
-   - GitHub Issues: [Report a bug](https://github.com/akilhassane/pantheon/issues)
-   - Discord: [Join our server](#) <!-- TODO: Add Discord link -->
-   - Email: support@pantheon.ai <!-- TODO: Add support email -->
+3. **Report an issue**:
+   - GitHub Issues: [Create new issue](https://github.com/akilhassane/pantheon/issues/new)
+   - Include diagnostic report and logs
+   - Describe steps to reproduce
 
 ---
 
@@ -457,10 +457,8 @@ Watch our complete installation guide:
 
 Need help? We're here for you:
 
-- 📧 Email: support@pantheon.ai
-- 💬 Discord: [Join our community](#)
-- 🐛 GitHub Issues: [Report bugs](https://github.com/akilhassane/pantheon/issues)
-- 📚 Documentation: [Read the docs](https://docs.pantheon.ai)
+- 🐛 **GitHub Issues**: [Report bugs](https://github.com/akilhassane/pantheon/issues)
+- 📚 **Documentation**: Check the guides in the `docs/` folder
 
 ---
 

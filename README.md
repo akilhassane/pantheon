@@ -309,11 +309,8 @@ For detailed development instructions, see [Development Guide](./docs/DEVELOPMEN
 
 Join our growing community:
 
-- 💬 **Discord**: [Join our server](#) <!-- TODO: Add Discord link -->
-- 🐦 **Twitter**: [@PantheonAI](#) <!-- TODO: Add Twitter link -->
-- 📧 **Email**: support@pantheon.ai
 - 🐛 **GitHub Issues**: [Report bugs](https://github.com/akilhassane/pantheon/issues)
-- 📚 **Documentation**: [Read the docs](https://docs.pantheon.ai)
+- 📚 **Documentation**: Check the `docs/` folder for guides
 
 ---
 

@@ -446,9 +446,7 @@ A: Ensure:
 
 ### Community
 
-- 💬 Discord: [Join our server](#)
-- 🐛 GitHub Issues: [Report bugs](https://github.com/akilhassane/pantheon/issues)
-- 📧 Email: support@pantheon.ai
+- 🐛 **GitHub Issues**: [Report bugs](https://github.com/akilhassane/pantheon/issues)
 
 ### Video Tutorials
 

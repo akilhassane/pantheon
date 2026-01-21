@@ -773,6 +773,6 @@ bash install-pantheon.sh
 
 ---
 
-**Still need help? Contact us at support@pantheon.ai**
+**For more help, see the [Installation Guide](./INSTALLATION_GUIDE.md) or [report an issue on GitHub](https://github.com/akilhassane/pantheon/issues)**
 
 [⬆ Back to Top](#pantheon-troubleshooting-guide)
