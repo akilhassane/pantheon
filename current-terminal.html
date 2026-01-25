@@ -1,3 +1,4 @@
+﻿
 <!DOCTYPE html>
 <html>
 <head>
@@ -77,27 +78,15 @@
           sessionId = data.sessionId;
           localStorage.setItem('terminalSessionId', sessionId);
           connectWebSocket(sessionId);
-        })
-        .catch(() => {
-          // Fallback to shared session
-          sessionId = 'shared-windows-session';
-          localStorage.setItem('terminalSessionId', sessionId);
-          connectWebSocket(sessionId);
         });
     } else {
       connectWebSocket(sessionId);
     }
     
     function connectWebSocket(sessionId) {
-      // Connect WebSocket to Cloudflare tunnel
-      const tunnelUrl = 'wss://teeth-broke-bra-special.trycloudflare.com';
-      const wsUrl = `${tunnelUrl}?sessionId=${sessionId}`;
-      
-      console.log('🔌 Connecting to WebSocket:', wsUrl);
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port || 9090}?sessionId=${sessionId}`);
       
       ws.onopen = () => {
-        console.log('✅ WebSocket connected');
         // Send terminal size IMMEDIATELY before focusing
         ws.send(JSON.stringify({
           type: 'resize',
@@ -147,12 +136,12 @@
       }
       
       ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        console.error('WebSocket error:', error);
         term.write('\r\n\x1b[31mConnection error!\x1b[0m\r\n');
       };
       
       ws.onclose = (event) => {
-        console.log('🔌 WebSocket closed:', event.code, event.reason);
+        console.log('WebSocket closed:', event.code, event.reason);
         term.write('\r\n\x1b[31mConnection closed!\x1b[0m\r\n');
         if (event.code !== 1000) { // Not a normal closure
           reconnect();
@@ -162,3 +151,4 @@
   </script>
 </body>
 </html>
+    
