@@ -35,37 +35,36 @@
 
 <div align="center">
 
-> **Note**: The platform demo video (135MB) exceeds GitHub's 100MB limit. 
+> **Platform Demo Video** (135MB)
 > 
-> **To add it to the README:**
-> 1. Compress the video: `ffmpeg -i media/platform-demo.mp4 -vcodec h264 -acodec aac -b:v 2M media/platform-demo-compressed.mp4`
-> 2. Upload the compressed video to a GitHub issue
-> 3. Copy the generated URL and paste it here
-> 
-> Or watch the full demo: [Download Video](https://github.com/akilhassane/pantheon/raw/main/media/platform-demo.mp4)
+> Due to file size, please [download the full demo video](https://github.com/akilhassane/pantheon/raw/main/media/platform-demo.mp4) or watch the tutorials below.
 
 </div>
 
-<details>
-<summary>📹 Additional Tutorial Videos</summary>
+<details open>
+<summary>📹 Tutorial Videos (Click to expand)</summary>
 
-### Adding AI Models
+<br>
+
+### 🤖 Adding AI Models
 
 <div align="center">
 
-https://github.com/akilhassane/pantheon/raw/main/media/add-models.mp4
+![Adding AI Models](https://github.com/akilhassane/pantheon/raw/main/media/add-models.mp4)
 
-<p><em>Learn how to configure AI models in Pantheon</em></p>
+<p><em>Learn how to configure AI models in Pantheon (6.3MB)</em></p>
 
 </div>
 
-### Creating Custom Modes
+<br>
+
+### ⚙️ Creating Custom Modes
 
 <div align="center">
 
-https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.mp4
+![Creating Custom Modes](https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.mp4)
 
-<p><em>Create specialized AI assistants for your workflow</em></p>
+<p><em>Create specialized AI assistants for your workflow (4.5MB)</em></p>
 
 </div>
 
