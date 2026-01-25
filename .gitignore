@@ -46,8 +46,13 @@ scripts/
 windows-vm-files/
 windows-test-setup/
 workspace/
+Media/
+LOCAL_CLEANUP_BACKUP/
+catalogs/
+mcp-client-configs/
+workflows/
 
-# Documentation (development)
+# Documentation (development - exclude all except README.md and LICENSE)
 *_FIX*.md
 *_STATUS*.md
 *_COMPLETE*.md
