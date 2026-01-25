@@ -29,11 +29,47 @@
 
 ---
 
-## 🎥 Demo Video
+## 🎥 Demo Videos
 
-### How to Use Pantheon Platform
+### Platform Overview
 
-> **Demo videos coming soon!** Star the repo to get notified when they're available.
+<div align="center">
+  
+https://github.com/user-attachments/assets/your-video-id-here
+
+  <p><em>Watch how Pantheon enables AI to interact with Windows</em></p>
+</div>
+
+<details>
+<summary>📹 Additional Tutorial Videos</summary>
+
+### Adding AI Models
+
+<div align="center">
+  
+https://github.com/user-attachments/assets/your-video-id-here
+
+</div>
+
+### Creating Custom Modes
+
+<div align="center">
+  
+https://github.com/user-attachments/assets/your-video-id-here
+
+</div>
+
+</details>
+
+> **To add videos**: 
+> 1. Upload your `.mp4` files to a GitHub issue or discussion
+> 2. Copy the generated URL (format: `https://github.com/user-attachments/assets/...`)
+> 3. Paste the URL directly in the README (GitHub will auto-embed it)
+> 
+> Or use the `media/` folder for GIF files:
+> ```markdown
+> ![Demo](https://github.com/akilhassane/pantheon/raw/main/media/demo.gif)
+> ```
 
 ---
 

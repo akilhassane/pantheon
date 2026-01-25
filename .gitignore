@@ -46,11 +46,13 @@ scripts/
 windows-vm-files/
 windows-test-setup/
 workspace/
-Media/
 LOCAL_CLEANUP_BACKUP/
 catalogs/
 mcp-client-configs/
 workflows/
+
+# Allow media/ folder for demo videos
+!media/
 
 # Documentation (development - exclude all except README.md, LICENSE, and docs/ folder)
 # Allow docs/ folder
@@ -151,10 +153,10 @@ push-to-github.ps1
 /USER_GUIDE.md
 /VERIFY_*.md
 
-# Media files
-*.mp4
-*.gif
-demo_*.gif
+# Media files (root level only, allow media/ folder)
+/*.mp4
+/*.gif
+/demo_*.gif
 
 # Cleanup script
 cleanup-repo.ps1
