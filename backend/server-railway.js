@@ -200,6 +200,33 @@ app.get('/api/sessions/:sessionId/history', async (req, res) => {
 
 // ==================== PROJECT ROUTES ====================
 
+// Helper function to convert snake_case to camelCase for frontend
+function convertProjectData(data) {
+  if (!data) return null;
+  
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    ownerId: data.owner_id,
+    containerId: data.container_id,
+    containerName: data.container_name,
+    terminalPort: data.terminal_port,
+    terminalUrl: data.terminal_url,  // Include terminal tunnel URL
+    vncPort: data.vnc_port,
+    novncPort: data.novnc_port,
+    vncUrl: data.vnc_url,  // Include VNC tunnel URL
+    customPort1: data.custom_port_1,
+    customPort2: data.custom_port_2,
+    operatingSystem: data.operating_system,
+    mcpApiKey: data.mcp_api_key,
+    status: data.status,
+    createdAt: data.created_at,
+    lastActive: data.last_active,
+    isMock: data.container_id?.startsWith('mock-') || false
+  };
+}
+
 // Get projects
 app.get('/api/projects', async (req, res) => {
   try {
@@ -211,13 +238,17 @@ app.get('/api/projects', async (req, res) => {
       .order('created_at', { ascending: false });
     
     if (userId) {
-      query = query.eq('user_id', userId);
+      query = query.eq('owner_id', userId);  // Fixed: use owner_id instead of user_id
     }
     
     const { data, error } = await query;
     
     if (error) throw error;
-    res.json({ success: true, projects: data || [] });
+    
+    // Convert snake_case to camelCase for frontend
+    const projects = (data || []).map(convertProjectData);
+    
+    res.json({ success: true, projects });
   } catch (error) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ error: 'PROJECTS_GET_FAILED', message: error.message });
