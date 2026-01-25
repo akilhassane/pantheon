@@ -24,17 +24,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Auto token refresh enabled
  * - Session persisted in localStorage
  */
-// Get the redirect URL - force localhost for Docker compatibility
+// Get the redirect URL - use production URL on Vercel, localhost for local dev
 const getRedirectUrl = () => {
-  if (typeof window === 'undefined') return 'http://localhost:3000';
-  
-  // If accessing via localhost or 127.0.0.1, use that
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return window.location.origin;
+  if (typeof window === 'undefined') {
+    // Server-side: use production URL if on Vercel, otherwise localhost
+    return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
   }
   
-  // Otherwise (Docker container hostname), force localhost
-  return 'http://localhost:3000';
+  // Client-side: use current origin (works for both local and production)
+  return window.location.origin;
 };
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {

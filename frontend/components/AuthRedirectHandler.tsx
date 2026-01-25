@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 /**
  * AuthRedirectHandler
  * 
- * Handles OAuth redirects from Supabase that come back to the container hostname
- * instead of localhost. Automatically redirects to localhost:3000 with auth tokens.
+ * Handles OAuth redirects from Supabase. In production, processes auth tokens.
+ * In local Docker development, redirects container hostname to localhost.
  */
 export default function AuthRedirectHandler() {
   const router = useRouter()
@@ -19,15 +19,20 @@ export default function AuthRedirectHandler() {
     const currentUrl = window.location.href
     const currentHostname = window.location.hostname
 
+    // Check if we're on a production Vercel domain
+    const isProduction = currentHostname.includes('vercel.app')
+
     // Check if we're on a container hostname (not localhost or an IP)
     const isContainerHostname = 
       currentHostname !== 'localhost' &&
       currentHostname !== '127.0.0.1' &&
-      !currentHostname.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) // Not an IP address
+      !currentHostname.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) && // Not an IP address
+      !isProduction // Not production
 
     // Check if URL has auth tokens in the hash
     const hasAuthTokens = window.location.hash.includes('access_token=')
 
+    // Only redirect to localhost if we're in local Docker (not production)
     if (isContainerHostname && hasAuthTokens) {
       // Extract the hash with auth tokens
       const hash = window.location.hash
