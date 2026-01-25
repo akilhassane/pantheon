@@ -55,27 +55,40 @@ export default function AuthRedirectHandler() {
     if (hasAuthTokens) {
       console.log('🔐 Processing auth tokens from URL hash')
       
-      // Supabase client will automatically detect and process the session from URL
-      // We just need to trigger the auth state change listener
-      supabase.auth.getSession().then(({ data: { session }, error }) => {
-        if (error) {
-          console.error('❌ Error processing auth session:', error)
-          return
-        }
+      // Parse the hash parameters
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+      
+      if (accessToken && refreshToken) {
+        console.log('🔑 Setting session with tokens from URL')
         
-        if (session) {
-          console.log('✅ Auth session established:', {
-            user: session.user.email,
-            expiresAt: new Date(session.expires_at! * 1000).toISOString()
-          })
+        // Set the session using the tokens from the URL
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        }).then(({ data: { session }, error }) => {
+          if (error) {
+            console.error('❌ Error setting auth session:', error)
+            return
+          }
           
-          // Clean up the URL hash after successful authentication
-          window.history.replaceState(null, '', window.location.pathname)
-          
-          // Refresh the page to update auth state
-          router.refresh()
-        }
-      })
+          if (session) {
+            console.log('✅ Auth session established:', {
+              user: session.user.email,
+              expiresAt: new Date(session.expires_at! * 1000).toISOString()
+            })
+            
+            // Clean up the URL hash after successful authentication
+            window.history.replaceState(null, '', window.location.pathname)
+            
+            // Refresh the page to update auth state
+            router.refresh()
+          }
+        })
+      } else {
+        console.warn('⚠️ Auth tokens found in URL but missing access_token or refresh_token')
+      }
     }
   }, [router])
 
