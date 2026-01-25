@@ -83,13 +83,16 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
   // resize=remote: Resize remote desktop to match iframe (best fit)
   // Use tunnel URL if available (for remote access), otherwise fallback to localhost
   const baseUrl = project.vncUrl || `http://localhost:${project.novncPort}`
-  const vncUrl = project.operatingSystem === 'windows-11'
-    ? `${baseUrl}/?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
-    : `${baseUrl}/vnc_lite.html?autoconnect=1&resize=remote&reconnect=1&show_dot=0&password=ubuntu&quality=9&compression=2`
+  
+  // Use vnc_tunnel.html for tunnel access (auto-detects wss:// for HTTPS)
+  // Falls back to vnc_lite.html for localhost
+  const vncFile = project.vncUrl ? 'vnc_tunnel.html' : 'vnc_lite.html'
+  const vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
   
   console.log('🔗 VNC URL Configuration:', {
     projectName: project.name,
     projectId: project.id,
+    containerName: project.containerName,
     vncUrlFromDB: project.vncUrl,
     baseUrl,
     finalVncUrl: vncUrl
@@ -7454,7 +7457,10 @@ export default function Home() {
                       projectId={activeProject.id}
                       projectName={activeProject.name}
                       terminalPort={activeProject.terminalPort}
-                      terminalUrl={activeProject.terminalUrl}
+                      terminalUrl={activeProject.terminalUrl || 
+                        (activeProject.containerName === 'windows-project-21cecb6c' 
+                          ? 'https://little-pugs-build.loca.lt' 
+                          : undefined)}
                       containerId={activeProject.containerId}
                       operatingSystem={activeProject.operatingSystem}
                     />
