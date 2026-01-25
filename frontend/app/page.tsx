@@ -7446,7 +7446,7 @@ export default function Home() {
                       projectId={activeProject.id}
                       projectName={activeProject.name}
                       terminalPort={activeProject.terminalPort}
-                      terminalUrl={`${typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`) : 'http://backend:3002'}/api/proxy/${activeProject.id}/terminal/terminal.html`}
+                      terminalUrl={activeProject.terminalUrl || `${typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`) : 'http://backend:3002'}/api/proxy/${activeProject.id}/terminal-fixed.html`}
                       containerId={activeProject.containerId}
                       operatingSystem={activeProject.operatingSystem}
                     />
