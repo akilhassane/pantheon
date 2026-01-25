@@ -362,6 +362,13 @@ console.log('✅ Agent management routes initialized');
 
 // Setup tunnel proxy routes
 const tunnelProxy = require('./tunnel-proxy');
+const path = require('path');
+
+// Serve fixed terminal HTML that uses correct WebSocket URL for Cloudflare
+app.get('/api/proxy/:projectId/terminal-fixed.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terminal-fixed.html'));
+});
+
 app.use('/api/proxy', tunnelProxy);
 console.log('✅ Tunnel proxy routes initialized');
 
