@@ -34,10 +34,8 @@
 ### Platform Overview
 
 <div align="center">
-  <video src="https://github.com/akilhassane/pantheon/raw/main/media/platform-demo-small.mp4" controls width="100%" style="max-width: 800px;">
-    Your browser does not support the video tag.
-  </video>
-  <p><em>Complete walkthrough of Pantheon AI Platform (28MB, 720p)</em></p>
+  <img src="https://github.com/akilhassane/pantheon/raw/main/media/platform-demo.gif" alt="Platform Demo" width="100%" style="max-width: 800px;">
+  <p><em>Watch Pantheon in action - AI interacting with Windows</em></p>
 </div>
 
 ---
@@ -50,9 +48,7 @@
 
 #### 🤖 Adding AI Models
 
-<video src="https://github.com/akilhassane/pantheon/raw/main/media/add-models.mp4" controls width="100%">
-  Your browser does not support the video tag.
-</video>
+<img src="https://github.com/akilhassane/pantheon/raw/main/media/add-models.gif" alt="Adding AI Models" width="100%">
 
 <p align="center"><em>Configure AI providers and models</em></p>
 
@@ -61,9 +57,7 @@
 
 #### ⚙️ Creating Custom Modes
 
-<video src="https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.mp4" controls width="100%">
-  Your browser does not support the video tag.
-</video>
+<img src="https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.gif" alt="Creating Custom Modes" width="100%">
 
 <p align="center"><em>Create specialized AI assistants</em></p>
 
