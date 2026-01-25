@@ -29,43 +29,12 @@
 
 ---
 
-## 🎥 Demo Videos
-
-### Platform Overview
+## 🎥 Demo Video
 
 <div align="center">
   <img src="https://github.com/akilhassane/pantheon/raw/main/media/platform-demo.gif" alt="Platform Demo" width="100%" style="max-width: 800px;">
   <p><em>Watch Pantheon in action - AI interacting with Windows</em></p>
 </div>
-
----
-
-### Tutorial Videos
-
-<table>
-<tr>
-<td width="50%">
-
-#### 🤖 Adding AI Models
-
-<img src="https://github.com/akilhassane/pantheon/raw/main/media/add-models.gif" alt="Adding AI Models" width="100%">
-
-<p align="center"><em>Configure AI providers and models</em></p>
-
-</td>
-<td width="50%">
-
-#### ⚙️ Creating Custom Modes
-
-<img src="https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.gif" alt="Creating Custom Modes" width="100%">
-
-<p align="center"><em>Create specialized AI assistants</em></p>
-
-</td>
-</tr>
-</table>
-
----
 
 ---
 
