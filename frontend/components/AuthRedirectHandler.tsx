@@ -14,11 +14,20 @@ export default function AuthRedirectHandler() {
   const router = useRouter()
 
   useEffect(() => {
+    console.log('🚀 AuthRedirectHandler mounted')
+    
     // Only run in browser
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined') {
+      console.log('⚠️ Not in browser, skipping')
+      return
+    }
 
     const currentUrl = window.location.href
     const currentHostname = window.location.hostname
+    const currentHash = window.location.hash
+
+    console.log('🔍 Current URL:', currentUrl)
+    console.log('🔍 Current hash:', currentHash)
 
     // Check if we're on a production Vercel domain
     const isProduction = currentHostname.includes('vercel.app')
@@ -32,6 +41,13 @@ export default function AuthRedirectHandler() {
 
     // Check if URL has auth tokens in the hash
     const hasAuthTokens = window.location.hash.includes('access_token=')
+    
+    console.log('🔍 Auth check:', {
+      isProduction,
+      isContainerHostname,
+      hasAuthTokens,
+      hashLength: currentHash.length
+    })
 
     // Only redirect to localhost if we're in local Docker (not production)
     if (isContainerHostname && hasAuthTokens) {
