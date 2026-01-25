@@ -2593,7 +2593,7 @@ export default function Home() {
           while (attempts < maxAttempts && !vncReady) {
             try {
               // Try a real fetch (not HEAD, not no-cors) to see if we get a response
-              const checkResponse = await fetch(`http://localhost:${data.project.novncPort}/vnc_lite.html`, {
+              const checkResponse = await fetch(`http://localhost:${data.project.novncPort}/vnc_tunnel.html`, {
                 method: 'GET',
                 cache: 'no-cache'
               })
