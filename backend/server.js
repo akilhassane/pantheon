@@ -362,13 +362,6 @@ console.log('✅ Agent management routes initialized');
 
 // Setup tunnel proxy routes
 const tunnelProxy = require('./tunnel-proxy');
-const path = require('path');
-
-// Serve custom terminal HTML that uses proxied WebSocket
-app.get('/api/proxy/:projectId/terminal-proxy.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'terminal-proxy.html'));
-});
-
 app.use('/api/proxy', tunnelProxy);
 console.log('✅ Tunnel proxy routes initialized');
 

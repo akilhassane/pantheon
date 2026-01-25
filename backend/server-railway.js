@@ -46,38 +46,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Test Supabase connection
-app.get('/api/test/supabase', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('count')
-      .limit(1);
-    
-    if (error) {
-      return res.json({
-        status: 'error',
-        message: 'Supabase connection failed',
-        error: error.message,
-        supabaseUrl: process.env.SUPABASE_URL ? 'Set' : 'Not set',
-        supabaseKey: process.env.SUPABASE_SERVICE_KEY ? 'Set' : 'Not set'
-      });
-    }
-    
-    res.json({
-      status: 'ok',
-      message: 'Supabase connected successfully',
-      supabaseUrl: process.env.SUPABASE_URL,
-      hasServiceKey: !!process.env.SUPABASE_SERVICE_KEY
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-});
-
 // ==================== SESSION ROUTES ====================
 
 // Get sessions by project
@@ -219,40 +187,11 @@ app.get('/api/sessions/:sessionId/history', async (req, res) => {
       .from('chat_messages')
       .select('*')
       .eq('session_id', sessionId)
-      .order('timestamp', { ascending: true })
+      .order('created_at', { ascending: true })
       .limit(limit);
     
     if (error) throw error;
-    
-    // Transform messages to include complete message structure from metadata
-    const history = (data || []).map(msg => {
-      // If metadata contains the complete message object, use it
-      if (msg.metadata) {
-        try {
-          const completeMessage = typeof msg.metadata === 'string' 
-            ? JSON.parse(msg.metadata) 
-            : msg.metadata;
-          
-          // Ensure timestamp is included
-          if (completeMessage.timestamp) {
-            completeMessage.timestamp = new Date(completeMessage.timestamp);
-          }
-          
-          return completeMessage;
-        } catch (parseError) {
-          console.error('Error parsing message metadata:', parseError);
-        }
-      }
-      
-      // Fallback to basic message structure
-      return {
-        role: msg.role,
-        content: msg.content,
-        timestamp: msg.timestamp
-      };
-    });
-    
-    res.json({ success: true, history, count: history.length });
+    res.json({ success: true, messages: data || [] });
   } catch (error) {
     console.error('Error fetching history:', error);
     res.status(500).json({ error: 'HISTORY_GET_FAILED', message: error.message });
@@ -408,26 +347,10 @@ app.get('/api/collaborations/projects/:projectId/collaborators', async (req, res
   try {
     const { projectId } = req.params;
     
-    // First get the collaboration for this project
-    const { data: collaboration, error: collabError } = await supabase
-      .from('collaborations')
-      .select('id')
-      .eq('project_id', projectId)
-      .single();
-    
-    if (collabError) {
-      if (collabError.code === 'PGRST116') {
-        // No collaboration found, return empty array
-        return res.json({ success: true, collaborators: [] });
-      }
-      throw collabError;
-    }
-    
-    // Get collaborators from collaborator_access table
     const { data, error } = await supabase
-      .from('collaborator_access')
-      .select('*')
-      .eq('collaboration_id', collaboration.id);
+      .from('project_collaborators')
+      .select('*, users(*)')
+      .eq('project_id', projectId);
     
     if (error) throw error;
     res.json({ success: true, collaborators: data || [] });
@@ -469,24 +392,22 @@ app.post('/api/collaborations/join', async (req, res) => {
   try {
     const { shareToken, userId } = req.body;
     
-    // Get collaboration by share token
-    const { data: collaboration, error: collabError } = await supabase
-      .from('collaborations')
+    // Get share info
+    const { data: share, error: shareError } = await supabase
+      .from('project_shares')
       .select('*')
       .eq('share_token', shareToken)
       .single();
     
-    if (collabError) throw collabError;
+    if (shareError) throw shareError;
     
-    // Add collaborator to collaborator_access table
+    // Add collaborator
     const { data, error } = await supabase
-      .from('collaborator_access')
+      .from('project_collaborators')
       .insert({
-        collaboration_id: collaboration.id,
+        project_id: share.project_id,
         user_id: userId,
-        permissions: 'read',
-        joined_at: new Date().toISOString(),
-        last_active: new Date().toISOString()
+        role: share.permissions
       })
       .select()
       .single();
