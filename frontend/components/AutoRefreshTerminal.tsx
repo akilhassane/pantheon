@@ -26,8 +26,22 @@ export default function AutoRefreshTerminal({
   const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const connectionCheckRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Determine final terminal URL - use tunnel URL if available, otherwise localhost
-  const finalTerminalUrl = terminalUrl || `http://localhost:${terminalPort}/`
+  // Determine final terminal URL
+  // For remote access (tunnel URL), use the fixed HTML from backend with wsTarget parameter
+  // For local access, use localhost directly
+  const finalTerminalUrl = terminalUrl 
+    ? (() => {
+        // Extract hostname from tunnel URL for WebSocket target
+        try {
+          const tunnelHostname = new URL(terminalUrl).hostname
+          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://pantheon-backend-production.up.railway.app'
+          return `${backendUrl}/api/proxy/${projectId}/terminal-fixed.html?wsTarget=${tunnelHostname}`
+        } catch (e) {
+          console.error('Failed to parse tunnel URL:', e)
+          return terminalUrl
+        }
+      })()
+    : `http://localhost:${terminalPort}/`
 
   // Note: We removed the periodic connection monitoring because:
   // 1. CORS prevents us from reading iframe content anyway
