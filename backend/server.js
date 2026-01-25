@@ -360,6 +360,11 @@ const agentRoutes = setupAgentRoutes(agentWS);
 app.use('/api/agents', agentRoutes);
 console.log('✅ Agent management routes initialized');
 
+// Setup tunnel proxy routes
+const tunnelProxy = require('./tunnel-proxy');
+app.use('/api/proxy', tunnelProxy);
+console.log('✅ Tunnel proxy routes initialized');
+
 // Integrate agentWS with project manager for remote container operations
 projectManager.setAgentHandler(agentWS);
 console.log('✅ Project manager configured with agent handler');
