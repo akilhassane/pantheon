@@ -7328,23 +7328,6 @@ export default function Home() {
 
               {/* Toggle Buttons */}
               <div className={`flex gap-0.5 ${chatPosition === 'left' ? 'flex-row-reverse' : ''}`}>
-                {/* Open in New Window button - for desktop tab */}
-                {activeTab === 'desktop' && activeProject?.vncUrl && (
-                  <button
-                    onClick={() => {
-                      const baseUrl = activeProject.vncUrl || `http://localhost:${activeProject.novncPort}`;
-                      const vncFile = activeProject.vncUrl ? 'vnc_tunnel.html' : 'vnc_lite.html';
-                      const vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`;
-                      window.open(vncUrl, '_blank', 'width=1280,height=720');
-                    }}
-                    className="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#2d2d2d] rounded-sm transition-colors"
-                    title="Open desktop in new window"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </button>
-                )}
                 {/* Fullscreen button - positioned based on chat position */}
                 {activeTab === 'desktop' && (
                   <button
