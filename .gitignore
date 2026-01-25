@@ -117,6 +117,44 @@ workflows/
 GITHUB_PUSH_INSTRUCTIONS.md
 push-to-github.ps1
 
+# Specific documentation files to exclude
+BACKUP-*.md
+BUILD_*.md
+CLEANUP_*.md
+COMMAND-*.md
+COMPLETE_*.md
+DEPLOYMENT*.md
+DOCKER_*.md
+DOCUMENTATION_*.md
+FINAL_*.md
+HOW_*.md
+IMMEDIATE_*.md
+INSTALL*.md
+INTERACTIVE_*.md
+KALI_*.md
+LAUNCH_*.md
+MEDIA_*.md
+NGROK_*.md
+PROJECT_*.md
+QUICK_*.md
+README_*.md
+READY_*.md
+REBRANDING_*.md
+SETUP*.md
+START_*.md
+TERMINAL_*.md
+TTYD_*.md
+USER_GUIDE.md
+VERIFY_*.md
+
+# Media files
+*.mp4
+*.gif
+demo_*.gif
+
+# Cleanup script
+cleanup-repo.ps1
+
 # Build scripts
 build-*.sh
 build-*.ps1
