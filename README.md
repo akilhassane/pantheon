@@ -34,41 +34,42 @@
 ### Platform Overview
 
 <div align="center">
-
-> **Platform Demo Video** (135MB)
-> 
-> Due to file size, please [download the full demo video](https://github.com/akilhassane/pantheon/raw/main/media/platform-demo.mp4) or watch the tutorials below.
-
+  <video src="https://github.com/akilhassane/pantheon/raw/main/media/platform-demo-small.mp4" controls width="100%" style="max-width: 800px;">
+    Your browser does not support the video tag.
+  </video>
+  <p><em>Complete walkthrough of Pantheon AI Platform (28MB, 720p)</em></p>
 </div>
 
-<details open>
-<summary>📹 Tutorial Videos (Click to expand)</summary>
+---
 
-<br>
+### Tutorial Videos
 
-### 🤖 Adding AI Models
+<table>
+<tr>
+<td width="50%">
 
-<div align="center">
+#### 🤖 Adding AI Models
 
-![Adding AI Models](https://github.com/akilhassane/pantheon/raw/main/media/add-models.mp4)
+<video src="https://github.com/akilhassane/pantheon/raw/main/media/add-models.mp4" controls width="100%">
+  Your browser does not support the video tag.
+</video>
 
-<p><em>Learn how to configure AI models in Pantheon (6.3MB)</em></p>
+<p align="center"><em>Configure AI providers and models</em></p>
 
-</div>
+</td>
+<td width="50%">
 
-<br>
+#### ⚙️ Creating Custom Modes
 
-### ⚙️ Creating Custom Modes
+<video src="https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.mp4" controls width="100%">
+  Your browser does not support the video tag.
+</video>
 
-<div align="center">
+<p align="center"><em>Create specialized AI assistants</em></p>
 
-![Creating Custom Modes](https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.mp4)
-
-<p><em>Create specialized AI assistants for your workflow (4.5MB)</em></p>
-
-</div>
-
-</details>
+</td>
+</tr>
+</table>
 
 ---
 
