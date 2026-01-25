@@ -85,6 +85,7 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
   const baseUrl = project.vncUrl || `http://localhost:${project.novncPort}`
   
   // Always use vnc_tunnel.html (auto-detects wss:// for HTTPS, ws:// for HTTP)
+  // Force rebuild: 2026-01-25
   const vncFile = 'vnc_tunnel.html'
   const vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
   
