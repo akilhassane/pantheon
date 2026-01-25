@@ -101,7 +101,15 @@ export const UnifiedTerminal: React.FC = () => {
 
   // WebSocket connection for desktop context updates
   useEffect(() => {
-    const ws = new WebSocket(`ws://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:3002`)
+    // Use NEXT_PUBLIC_BACKEND_URL if available, otherwise fallback to localhost
+    const backendHttpUrl = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`)
+      : 'http://backend:3002'
+    
+    // Convert HTTP URL to WebSocket URL
+    const wsUrl = backendHttpUrl.replace(/^http/, 'ws')
+    
+    const ws = new WebSocket(wsUrl)
     
     ws.onopen = () => {
       console.log('✅ WebSocket connected for desktop context')
