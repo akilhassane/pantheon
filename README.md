@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/akilhassane/pantheon?style=for-the-badge)](https://github.com/akilhassane/pantheon/stargazers)
 
-[🚀 Quick Start](#quick-start) • [📖 Documentation](#documentation) • [🎥 Demo Videos](#-demo-videos) • [💬 Community](#community)
+[🚀 Quick Start](#-quick-start) • [📖 Documentation](#-documentation) • [🎥 Demo Video](#-demo-video) • [💬 Community](#-community)
 
 </div>
 
