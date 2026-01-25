@@ -34,10 +34,16 @@
 ### Platform Overview
 
 <div align="center">
-  
-https://github.com/user-attachments/assets/your-video-id-here
 
-  <p><em>Watch how Pantheon enables AI to interact with Windows</em></p>
+> **Note**: The platform demo video (135MB) exceeds GitHub's 100MB limit. 
+> 
+> **To add it to the README:**
+> 1. Compress the video: `ffmpeg -i media/platform-demo.mp4 -vcodec h264 -acodec aac -b:v 2M media/platform-demo-compressed.mp4`
+> 2. Upload the compressed video to a GitHub issue
+> 3. Copy the generated URL and paste it here
+> 
+> Or watch the full demo: [Download Video](https://github.com/akilhassane/pantheon/raw/main/media/platform-demo.mp4)
+
 </div>
 
 <details>
@@ -46,30 +52,24 @@ https://github.com/user-attachments/assets/your-video-id-here
 ### Adding AI Models
 
 <div align="center">
-  
-https://github.com/user-attachments/assets/your-video-id-here
+
+https://github.com/akilhassane/pantheon/raw/main/media/add-models.mp4
+
+<p><em>Learn how to configure AI models in Pantheon</em></p>
 
 </div>
 
 ### Creating Custom Modes
 
 <div align="center">
-  
-https://github.com/user-attachments/assets/your-video-id-here
+
+https://github.com/akilhassane/pantheon/raw/main/media/custom-modes.mp4
+
+<p><em>Create specialized AI assistants for your workflow</em></p>
 
 </div>
 
 </details>
-
-> **To add videos**: 
-> 1. Upload your `.mp4` files to a GitHub issue or discussion
-> 2. Copy the generated URL (format: `https://github.com/user-attachments/assets/...`)
-> 3. Paste the URL directly in the README (GitHub will auto-embed it)
-> 
-> Or use the `media/` folder for GIF files:
-> ```markdown
-> ![Demo](https://github.com/akilhassane/pantheon/raw/main/media/demo.gif)
-> ```
 
 ---
 
