@@ -84,9 +84,8 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
   // Use tunnel URL if available (for remote access), otherwise fallback to localhost
   const baseUrl = project.vncUrl || `http://localhost:${project.novncPort}`
   
-  // Use vnc_tunnel.html for tunnel access (auto-detects wss:// for HTTPS)
-  // Falls back to vnc_lite.html for localhost
-  const vncFile = project.vncUrl ? 'vnc_tunnel.html' : 'vnc_lite.html'
+  // Always use vnc_tunnel.html (auto-detects wss:// for HTTPS, ws:// for HTTP)
+  const vncFile = 'vnc_tunnel.html'
   const vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
   
   console.log('🔗 VNC URL Configuration:', {
