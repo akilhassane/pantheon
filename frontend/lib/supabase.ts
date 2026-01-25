@@ -3,6 +3,8 @@
  * 
  * This module provides a Supabase client instance configured with
  * the anon key for client-side operations with RLS enforcement.
+ * 
+ * Updated: 2026-01-25 - Fixed production environment variables
  */
 
 import { createClient } from '@supabase/supabase-js';
