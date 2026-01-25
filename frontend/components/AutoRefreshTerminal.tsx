@@ -6,6 +6,7 @@ interface AutoRefreshTerminalProps {
   projectId: string
   projectName: string
   terminalPort: number
+  terminalUrl?: string  // Optional tunnel URL for remote access
   containerId?: string
   operatingSystem?: string
 }
@@ -14,6 +15,7 @@ export default function AutoRefreshTerminal({
   projectId,
   projectName,
   terminalPort,
+  terminalUrl,
   containerId,
   operatingSystem
 }: AutoRefreshTerminalProps) {
@@ -23,6 +25,9 @@ export default function AutoRefreshTerminal({
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const connectionCheckRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Determine final terminal URL - use tunnel URL if available, otherwise localhost
+  const finalTerminalUrl = terminalUrl || `http://localhost:${terminalPort}/`
 
   // Note: We removed the periodic connection monitoring because:
   // 1. CORS prevents us from reading iframe content anyway
@@ -123,7 +128,8 @@ export default function AutoRefreshTerminal({
             console.log('   Container ID:', containerId)
             console.log('   Terminal Port:', terminalPort)
             console.log('   Operating System:', operatingSystem || 'unknown')
-            console.log('   URL:', `http://localhost:${terminalPort}/`)
+            console.log('   Terminal URL from prop:', terminalUrl || 'not set')
+            console.log('   Final URL:', finalTerminalUrl)
             console.log('   Data is being received - stopping auto-refresh')
             console.log('   Setting hasLoadedSuccessfully to TRUE')
             console.log('========================================')
@@ -161,18 +167,17 @@ export default function AutoRefreshTerminal({
     console.error('   Project:', projectName)
     console.error('   Project ID:', projectId)
     console.error('   Port:', terminalPort)
-    console.error('   URL:', `http://localhost:${terminalPort}/`)
+    console.error('   Terminal URL from prop:', terminalUrl || 'not set')
+    console.error('   Final URL:', finalTerminalUrl)
     console.error('   Error:', e)
     console.error('   Will retry in 2 seconds...')
   }
-
-  const terminalUrl = `http://localhost:${terminalPort}/`
 
   return (
     <iframe
       ref={iframeRef}
       key={`terminal-${projectId}-${terminalPort}-${containerId || 'new'}-${refreshKey}`}
-      src={terminalUrl}
+      src={finalTerminalUrl}
       className="border-none rounded-lg w-full h-full"
       onLoad={handleLoad}
       onError={handleError}

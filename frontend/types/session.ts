@@ -31,10 +31,14 @@ export interface Project {
   workingDirectory?: string
   /** Terminal port (ttyd/gotty) */
   terminalPort: number
+  /** Public terminal URL (e.g., Cloudflare tunnel URL for remote terminal access) */
+  terminalUrl?: string
   /** VNC port for desktop access */
   vncPort: number
   /** noVNC web port for browser-based desktop access */
   novncPort: number
+  /** Public VNC URL (e.g., Cloudflare tunnel URL for remote access) */
+  vncUrl?: string
   /** Operating system (e.g., 'kali-linux', 'ubuntu-24') */
   operatingSystem?: string
   /** Session IDs belonging to this project */

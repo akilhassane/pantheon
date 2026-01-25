@@ -81,9 +81,19 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
   // Build VNC URL with proper parameters to hide control bar and fit screen perfectly
   // resize=scale: Scale desktop to fit iframe
   // resize=remote: Resize remote desktop to match iframe (best fit)
+  // Use tunnel URL if available (for remote access), otherwise fallback to localhost
+  const baseUrl = project.vncUrl || `http://localhost:${project.novncPort}`
   const vncUrl = project.operatingSystem === 'windows-11'
-    ? `http://localhost:${project.novncPort}/?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
-    : `http://localhost:${project.novncPort}/vnc_lite.html?autoconnect=1&resize=remote&reconnect=1&show_dot=0&password=ubuntu&quality=9&compression=2`
+    ? `${baseUrl}/?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
+    : `${baseUrl}/vnc_lite.html?autoconnect=1&resize=remote&reconnect=1&show_dot=0&password=ubuntu&quality=9&compression=2`
+  
+  console.log('🔗 VNC URL Configuration:', {
+    projectName: project.name,
+    projectId: project.id,
+    vncUrlFromDB: project.vncUrl,
+    baseUrl,
+    finalVncUrl: vncUrl
+  })
   
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000', zIndex: 10, overflow: 'hidden' }}>
@@ -178,8 +188,9 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
           console.log('   Project ID:', project.id)
           console.log('   Container ID:', project.containerId)
           console.log('   noVNC Port:', project.novncPort)
+          console.log('   VNC URL from DB:', project.vncUrl || 'not set')
           console.log('   Operating System:', project.operatingSystem || 'unknown')
-          console.log('   URL:', `http://localhost:${project.novncPort}/vnc_lite.html`)
+          console.log('   Final URL:', vncUrl)
           console.log('========================================')
         }}
         onError={(e) => {
@@ -7443,6 +7454,7 @@ export default function Home() {
                       projectId={activeProject.id}
                       projectName={activeProject.name}
                       terminalPort={activeProject.terminalPort}
+                      terminalUrl={activeProject.terminalUrl}
                       containerId={activeProject.containerId}
                       operatingSystem={activeProject.operatingSystem}
                     />

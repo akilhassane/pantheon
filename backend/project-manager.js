@@ -932,6 +932,7 @@ echo "Windows VM can access Tools API at http://172.30.35.2:8090"
       containerId: data.container_id,
       containerName: data.container_name,
       terminalPort: data.terminal_port,
+      terminalUrl: data.terminal_url,  // Include terminal tunnel URL for remote access
       vncPort: data.vnc_port,
       novncPort: data.novnc_port,
       vncUrl: data.vnc_url,  // Include VNC tunnel URL for remote access
