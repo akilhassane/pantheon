@@ -78,23 +78,24 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
     return <div className="w-full h-full bg-black rounded-lg" />
   }
   
-  // Build VNC URL with proper parameters to hide control bar and fit screen perfectly
-  // resize=scale: Scale desktop to fit iframe
-  // resize=remote: Resize remote desktop to match iframe (best fit)
-  // Use tunnel URL if available (for remote access), otherwise fallback to localhost
-  const baseUrl = project.vncUrl || `http://localhost:${project.novncPort}`
+  // Build VNC URL through backend proxy
+  // Backend proxies to Cloudflare tunnel URLs stored in database
+  const backendUrl = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`)
+    : 'http://backend:3002';
   
-  // Always use vnc_tunnel.html (auto-detects wss:// for HTTPS, ws:// for HTTP)
-  // Force rebuild: 2026-01-25
-  const vncFile = 'vnc_tunnel.html'
+  const baseUrl = `${backendUrl}/api/proxy/${project.id}/vnc`;
+  
+  // Always use vnc_lite.html (modified with wss:// support)
+  const vncFile = 'vnc_lite.html'
   const vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
   
   console.log('🔗 VNC URL Configuration:', {
     projectName: project.name,
     projectId: project.id,
     containerName: project.containerName,
-    vncUrlFromDB: project.vncUrl,
-    baseUrl,
+    backendUrl,
+    proxyUrl: baseUrl,
     finalVncUrl: vncUrl
   })
   
@@ -7457,10 +7458,7 @@ export default function Home() {
                       projectId={activeProject.id}
                       projectName={activeProject.name}
                       terminalPort={activeProject.terminalPort}
-                      terminalUrl={activeProject.terminalUrl || 
-                        (activeProject.containerName === 'windows-project-21cecb6c' 
-                          ? 'https://little-pugs-build.loca.lt' 
-                          : undefined)}
+                      terminalUrl={`${typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`) : 'http://backend:3002'}/api/proxy/${activeProject.id}/terminal/terminal.html`}
                       containerId={activeProject.containerId}
                       operatingSystem={activeProject.operatingSystem}
                     />
