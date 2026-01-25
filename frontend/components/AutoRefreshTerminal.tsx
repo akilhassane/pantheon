@@ -106,12 +106,12 @@ export default function AutoRefreshTerminal({
             
             console.log(`📄 Iframe body text length: ${bodyText.length}`)
             
-            // If we see "Connection Closed!" or "Connection failed", don't mark as successfully loaded
-            if (bodyText.includes('Connection Closed!') || bodyText.includes('Connection failed')) {
-              console.log('⚠️ Iframe loaded but shows connection error - continuing refresh...')
+            // If we see "Connection Closed!", don't mark as successfully loaded
+            if (bodyText.includes('Connection Closed!')) {
+              console.log('⚠️ Iframe loaded but shows "Connection Closed!" - continuing refresh...')
               hasConnectionError = true
             } else {
-              console.log('✅ Iframe content looks good (no connection errors found)')
+              console.log('✅ Iframe content looks good (no "Connection Closed!" found)')
             }
           } catch (e) {
             // CORS error - can't check content
