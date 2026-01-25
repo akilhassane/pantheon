@@ -1930,39 +1930,27 @@ export default function Home() {
       const cachedMessages = chatMessagesToMessages(cachedSession.chatHistory)
       setMessages(cachedMessages)
     }
-    // PRIORITY 3: Check if session has chatHistory defined (even if empty)
-    // If chatHistory exists (even as empty array), use it - don't fetch from backend
-    // This prevents newly created sessions from loading wrong data
-    else if (session.chatHistory !== undefined) {
-      if (session.chatHistory.length > 0) {
-        console.log(`✅ Using session.chatHistory (${session.chatHistory.length} messages)`)
-        
-        // Update refs FIRST to prevent useEffect from interfering
-        lastLoadedSessionRef.current = sessionId
-        const chatHistoryHash = `${sessionId}-${session.chatHistory.length}-${session.chatHistory[session.chatHistory.length - 1]?.timestamp}`
-        lastSessionsHashRef.current = chatHistoryHash
-        
-        // Then update state to trigger immediate render
-        setChatHistory([...session.chatHistory]) // Create new array to force re-render
-        const cachedMessages = chatMessagesToMessages(session.chatHistory)
-        setMessages(cachedMessages)
-        
-        // Update session cache for future switches
-        updateSessionCache(sessionId, session.chatHistory, false);
-        
-        console.log(`🎨 Loaded from session.chatHistory: ${session.chatHistory.length} messages`)
-      } else {
-        console.log(`✅ Using empty chat history for new session`)
-        lastLoadedSessionRef.current = sessionId
-        lastSessionsHashRef.current = `${sessionId}-empty`
-        setMessages([])
-        setChatHistory([])
-        
-        // Update session cache with empty history
-        updateSessionCache(sessionId, [], false);
-      }
+    // PRIORITY 3: Check if session has chatHistory with messages
+    // Only use session.chatHistory if it has actual messages
+    else if (session.chatHistory && session.chatHistory.length > 0) {
+      console.log(`✅ Using session.chatHistory (${session.chatHistory.length} messages)`)
+      
+      // Update refs FIRST to prevent useEffect from interfering
+      lastLoadedSessionRef.current = sessionId
+      const chatHistoryHash = `${sessionId}-${session.chatHistory.length}-${session.chatHistory[session.chatHistory.length - 1]?.timestamp}`
+      lastSessionsHashRef.current = chatHistoryHash
+      
+      // Then update state to trigger immediate render
+      setChatHistory([...session.chatHistory]) // Create new array to force re-render
+      const cachedMessages = chatMessagesToMessages(session.chatHistory)
+      setMessages(cachedMessages)
+      
+      // Update session cache for future switches
+      updateSessionCache(sessionId, session.chatHistory, false);
+      
+      console.log(`🎨 Loaded from session.chatHistory: ${session.chatHistory.length} messages`)
     } else {
-      // No cached history, fetch from backend
+      // No cached history or empty history, fetch from backend
       console.log('📡 Fetching chat history from backend...')
       try {
         const response = await fetch(`${backendUrl}/api/sessions/${sessionId}/history?limit=100`)
