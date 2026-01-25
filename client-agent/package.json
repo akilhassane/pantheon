@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Pantheon client agent for running containers on local machines",
   "main": "agent.js",
-  "type": "module",
   "scripts": {
     "start": "node agent.js",
     "install-service": "node install-service.js"

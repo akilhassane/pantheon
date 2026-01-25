@@ -359,8 +359,9 @@ const agentRoutes = setupAgentRoutes(agentWS);
 app.use('/api/agents', agentRoutes);
 console.log('✅ Agent management routes initialized');
 
-// TODO: Integrate agentWS with project manager for remote container operations
-// projectManager.setAgentHandler(agentWS);
+// Integrate agentWS with project manager for remote container operations
+projectManager.setAgentHandler(agentWS);
+console.log('✅ Project manager configured with agent handler');
 
 // Cleanup on shutdown
 process.on('SIGINT', async () => {

@@ -34,6 +34,9 @@ class ProjectManager {
       this.dockerAvailable = false;
     }
     
+    // Agent handler for remote container management
+    this.agentHandler = null;
+    
     // Configuration
     this.baseImage = options.baseImage || 'mcp-server-kali-pentest:latest';
     this.portAllocator = options.portAllocator;
@@ -46,6 +49,128 @@ class ProjectManager {
     this.apiKeyGenerator = getApiKeyGenerator();
     
     console.log(`[ProjectManager] Initialized with ${this.dockerAvailable ? 'Docker' : 'mock mode'} and Supabase persistence`);
+  }
+
+  /**
+   * Set the agent handler for remote container management
+   * @param {Object} agentHandler - Agent WebSocket handler instance
+   */
+  setAgentHandler(agentHandler) {
+    this.agentHandler = agentHandler;
+    console.log('[ProjectManager] ✅ Agent handler configured for remote container management');
+  }
+
+  /**
+   * Get connected agent for a user
+   * @param {string} userId - User ID
+   * @returns {string|null} Agent ID or null if no agent connected
+   */
+  getAgentForUser(userId) {
+    if (!this.agentHandler) {
+      return null;
+    }
+
+    const agents = this.agentHandler.getConnectedAgents();
+    const userAgent = agents.find(agent => agent.metadata.userId === userId);
+    
+    if (userAgent) {
+      console.log(`[ProjectManager] Found agent ${userAgent.agentId} for user ${userId}`);
+      return userAgent.agentId;
+    }
+
+    console.log(`[ProjectManager] No agent found for user ${userId}`);
+    return null;
+  }
+
+  /**
+   * Create container (local or remote via agent)
+   * @param {Object} containerConfig - Docker container configuration
+   * @param {string} userId - User ID (for agent lookup)
+   * @returns {Promise<Object>} Container info
+   */
+  async createContainer(containerConfig, userId = null) {
+    // Try to use agent if available
+    const agentId = userId ? this.getAgentForUser(userId) : null;
+    
+    if (agentId && this.agentHandler) {
+      console.log(`[ProjectManager] 🤖 Creating container via agent ${agentId}`);
+      try {
+        const result = await this.agentHandler.createContainer(agentId, containerConfig);
+        console.log(`[ProjectManager] ✅ Container created via agent: ${result.containerId}`);
+        return {
+          id: result.containerId,
+          agentId: agentId,
+          remote: true
+        };
+      } catch (error) {
+        console.error(`[ProjectManager] ❌ Failed to create container via agent:`, error.message);
+        console.log(`[ProjectManager] Falling back to local Docker...`);
+      }
+    }
+
+    // Fallback to local Docker
+    if (this.dockerAvailable && this.docker) {
+      console.log(`[ProjectManager] 🐳 Creating container locally`);
+      const container = await this.docker.createContainer(containerConfig);
+      console.log(`[ProjectManager] ✅ Container created locally: ${container.id}`);
+      return {
+        id: container.id,
+        agentId: null,
+        remote: false
+      };
+    }
+
+    throw new Error('No Docker available (local or remote)');
+  }
+
+  /**
+   * Start container (local or remote via agent)
+   * @param {string} containerId - Container ID
+   * @param {string} agentId - Agent ID (if remote)
+   * @returns {Promise<void>}
+   */
+  async startContainer(containerId, agentId = null) {
+    if (agentId && this.agentHandler) {
+      console.log(`[ProjectManager] ▶️  Starting container via agent ${agentId}`);
+      await this.agentHandler.startContainer(agentId, containerId);
+      console.log(`[ProjectManager] ✅ Container started via agent`);
+      return;
+    }
+
+    if (this.dockerAvailable && this.docker) {
+      console.log(`[ProjectManager] ▶️  Starting container locally`);
+      const container = this.docker.getContainer(containerId);
+      await container.start();
+      console.log(`[ProjectManager] ✅ Container started locally`);
+      return;
+    }
+
+    throw new Error('No Docker available (local or remote)');
+  }
+
+  /**
+   * Stop container (local or remote via agent)
+   * @param {string} containerId - Container ID
+   * @param {string} agentId - Agent ID (if remote)
+   * @returns {Promise<void>}
+   */
+  async stopContainer(containerId, agentId = null) {
+    if (agentId && this.agentHandler) {
+      console.log(`[ProjectManager] ⏹️  Stopping container via agent ${agentId}`);
+      await this.agentHandler.stopContainer(agentId, containerId);
+      console.log(`[ProjectManager] ✅ Container stopped via agent`);
+      return;
+    }
+
+    if (this.dockerAvailable && this.docker) {
+      console.log(`[ProjectManager] ⏹️  Stopping container locally`);
+      const container = this.docker.getContainer(containerId);
+      await container.stop();
+      console.log(`[ProjectManager] ✅ Container stopped locally`);
+      return;
+    }
+
+    throw new Error('No Docker available (local or remote)');
   }
 
   /**
@@ -949,13 +1074,20 @@ echo "Windows VM can access Tools API at http://172.30.35.2:8090"
       
       console.log(`[ProjectManager] 🐳 Docker image: ${containerConfig.Image}`);
       
-      // Create container
+      // Create container (local or remote via agent)
       console.log(`[ProjectManager] Creating Docker container...`);
-      const container = await this.docker.createContainer(containerConfig);
-      const containerId = container.id;
+      const containerInfo = await this.createContainer(containerConfig, userId);
+      const containerId = containerInfo.id;
       const containerName = containerConfig.name;
+      const agentId = containerInfo.agentId;
+      const isRemote = containerInfo.remote;
       
       console.log(`[ProjectManager] Container created: ${containerId}`);
+      if (isRemote) {
+        console.log(`[ProjectManager] 🤖 Container created on remote agent: ${agentId}`);
+      } else {
+        console.log(`[ProjectManager] 🐳 Container created locally`);
+      }
       
       // Windows projects use embedded storage from the snapshot image
       // No volume initialization needed - storage files are baked into the image
@@ -964,14 +1096,21 @@ echo "Windows VM can access Tools API at http://172.30.35.2:8090"
         console.log(`[ProjectManager] Windows will boot from pre-installed system in 10-20 seconds`);
       }
       
-      // Start container
+      // Start container (local or remote via agent)
       console.log(`[ProjectManager] Starting container...`);
-      await container.start();
+      await this.startContainer(containerId, agentId);
       
       // Wait for container to be healthy
       // Windows needs more time: 3-5 min for snapshot copy + 1-2 min for boot = 30 min total
       const waitTime = isWindows ? 1800000 : 45000; // 30 minutes for Windows (snapshot copy + boot), 45 seconds for others
-      await this.waitForHealthy(container, waitTime);
+      
+      // For remote containers, skip health check (agent handles it)
+      if (!isRemote) {
+        const container = this.docker.getContainer(containerId);
+        await this.waitForHealthy(container, waitTime);
+      } else {
+        console.log(`[ProjectManager] ⏭️  Skipping health check for remote container`);
+      }
       
       // Initialize tmux session for terminal commands (not needed for Windows)
       if (!isWindows) {
@@ -1184,6 +1323,7 @@ MCP_LOG_LEVEL=info
         mcp_api_key: mcpApiKey, // Store MCP API key for Windows projects
         api_service_key: apiServiceKey, // Store API Service key for Windows projects
         encryption_key: encryptionKey, // Store encryption key for Windows projects
+        agent_id: agentId, // Store agent ID if container is remote
         status: 'creating', // Start as 'creating', health check will update to 'running' when ready
         created_at: new Date().toISOString(),
         last_active: new Date().toISOString()
