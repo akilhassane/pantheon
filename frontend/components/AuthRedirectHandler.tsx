@@ -2,11 +2,12 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 /**
  * AuthRedirectHandler
  * 
- * Handles OAuth redirects from Supabase. In production, processes auth tokens.
+ * Handles OAuth redirects from Supabase. Processes auth tokens from URL hash.
  * In local Docker development, redirects container hostname to localhost.
  */
 export default function AuthRedirectHandler() {
@@ -47,6 +48,34 @@ export default function AuthRedirectHandler() {
 
       // Redirect to localhost
       window.location.href = localhostUrl
+      return
+    }
+
+    // Process auth tokens if present in hash (for production and localhost)
+    if (hasAuthTokens) {
+      console.log('🔐 Processing auth tokens from URL hash')
+      
+      // Supabase client will automatically detect and process the session from URL
+      // We just need to trigger the auth state change listener
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error) {
+          console.error('❌ Error processing auth session:', error)
+          return
+        }
+        
+        if (session) {
+          console.log('✅ Auth session established:', {
+            user: session.user.email,
+            expiresAt: new Date(session.expires_at! * 1000).toISOString()
+          })
+          
+          // Clean up the URL hash after successful authentication
+          window.history.replaceState(null, '', window.location.pathname)
+          
+          // Refresh the page to update auth state
+          router.refresh()
+        }
+      })
     }
   }, [router])
 
