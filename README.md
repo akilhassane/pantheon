@@ -2,16 +2,13 @@
 
 <div align="center">
 
-![Pantheon Logo](./assets/pantheon-logo.png)
-<!-- TODO: Add Pantheon logo -->
-
 **A Multi-Agentic AI Platform for OS Interaction**
 
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/akilhassane/pantheon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/akilhassane/pantheon?style=for-the-badge)](https://github.com/akilhassane/pantheon/stargazers)
 
-[🚀 Quick Start](#quick-start) • [📖 Documentation](#documentation) • [🎥 Demo](#demo) • [💬 Community](#community)
+[🚀 Quick Start](#quick-start) • [📖 Documentation](#documentation) • [🎥 Demo Videos](#-demo-videos) • [💬 Community](#community)
 
 </div>
 
@@ -32,15 +29,22 @@
 
 ---
 
-## 🎥 Demo
+## 🎥 Demo Videos
 
-![Pantheon Demo](./assets/demo.gif)
-<!-- TODO: Add demo GIF showing Pantheon in action -->
+### Platform Overview
+Watch how to use the Pantheon platform:
 
-### Watch the Full Demo
+https://github.com/akilhassane/pantheon/raw/main/Media/video%20showing%20how%20to%20use%20the%20platform%20-%20Made%20with%20Clipchamp.mp4
 
-[![Pantheon Demo Video](./assets/video-thumbnail.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
-<!-- TODO: Record and upload demo video -->
+### Adding AI Models
+Learn how to add and configure AI models:
+
+https://github.com/akilhassane/pantheon/raw/main/Media/VIdeo%20showing%20how%20to%20add%20models%20-%20Made%20with%20Clipchamp.mp4
+
+### Custom Modes
+See how to create custom AI modes:
+
+https://github.com/akilhassane/pantheon/raw/main/Media/Video%20showing%20how%20to%20add%20custom%20modes%20-%20Made%20with%20Clipchamp.mp4
 
 ---
 

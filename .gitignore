@@ -1,32 +1,179 @@
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+package-lock.json
+
+# Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.DS_Store
-*.log
-coverage/
-.nyc_output/
+
+# Build outputs
+.next/
 dist/
 build/
 
-# Workspace and tools directories
-workspace/*.txt
-workspace/*.log
-tools/*
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# User-specific configs
-claude_desktop_config.json
-*.ps1
+# OS files
+.DS_Store
+Thumbs.db
 
-# Backup files
-*.backup
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Executables
-*.exe
-ngrok
-ngrok.exe
+# Temporary files
+*.tmp
+temp-*
+test-*
+screenshot-*.json
+all_screen_elements.json
+
+# Development files
+.claude/
+.data/
+.kiro/
+backups/
+docker/
+mcp-server/
+scripts/
+windows-vm-files/
+windows-test-setup/
+workspace/
+
+# Documentation (development)
+*_FIX*.md
+*_STATUS*.md
+*_COMPLETE*.md
+*_GUIDE*.md
+*_SUMMARY*.md
+*_IMPLEMENTATION*.md
+*_ANALYSIS*.md
+*_TROUBLESHOOTING*.md
+*_VERIFICATION*.md
+*_CHECKLIST*.md
+*_REFERENCE*.md
+*_SETUP*.md
+*_DEPLOYMENT*.md
+*_INTEGRATION*.md
+*_ARCHITECTURE*.md
+*_OPTIMIZATION*.md
+*_CONFIGURATION*.md
+*_INSTRUCTIONS*.md
+*_REPORT*.md
+*_RESULTS*.md
+*_SOLUTION*.md
+*_WORKFLOW*.md
+*_IMPROVEMENTS*.md
+*_UPDATES*.md
+*_CHANGES*.md
+*_FIXES*.md
+*_ISSUES*.md
+*_DIAGNOSIS*.md
+*_MONITORING*.md
+*_TESTING*.md
+*_REBUILD*.md
+*_SNAPSHOT*.md
+*_NETWORK*.md
+*_TOOLS*.md
+*_WINDOWS*.md
+*_PROJECT*.md
+*_SESSION*.md
+*_STREAMING*.md
+*_SCREENSHOT*.md
+*_TERMINAL*.md
+*_POWERSHELL*.md
+*_MCP*.md
+*_OPENAI*.md
+*_AI_*.md
+*_BACKEND_*.md
+*_FRONTEND_*.md
+*_DOCKER_*.md
+*_PORT_*.md
+*_SHARED_FOLDER_*.md
+*_VNC_*.md
+*_COLLABORATOR*.md
+*_AVATAR_*.md
+*_MODE_*.md
+*_MODEL_*.md
+*_SIDEBAR_*.md
+*_SETTINGS_*.md
+*_TEXT_*.md
+*_TOOL_*.md
+*_USAGE_*.md
+*_VISIBILITY_*.md
+*_WEBSOCKET_*.md
+GITHUB_PUSH_INSTRUCTIONS.md
+push-to-github.ps1
+
+# Build scripts
+build-*.sh
+build-*.ps1
+push-*.ps1
+restart-*.ps1
+monitor-*.ps1
+update-*.ps1
+setup-*.ps1
+diagnose-*.ps1
+fix-*.ps1
+cleanup-*.ps1
+connect-*.ps1
+start-*.ps1
+create-*.ps1
+rebuild-*.ps1
+install-*.ps1
+download-*.ps1
+extract-*.ps1
+enable-*.ps1
+switch-*.ps1
+notify-*.ps1
+patch-*.js
+call-*.js
+call-*.cjs
+execute-*.js
+execute-*.sh
+test-*.cjs
+test-*.js
+test-*.sh
+test-*.json
+temp-*.js
+temp-*.html
+temp-*.json
+temp-*.sh
+temp-*.ps1
+get-*.cjs
+get-*.mjs
+fix-*.mjs
+check-*.mjs
+serve-*.cjs
+simple-*.js
+
+# Config files
+docker-daemon-config.json
+powershell-*.conf
+powershell-*.sh
+powershell-*.html
+aws-*.json
+*.sql
+
+# Other
+*.bat
+*.vbs
+black-page.html
+icon-preview.html
+tool10-snippet.html
+windows-tools-index.html
+motivation_letter.md
+CV_improved.md
+send-to-terminal.py
+add-socat-to-windows-container.sh
+all_screen_elements.json
+backend-*.txt
+cleaned_system_prompt.txt
+clean-windows-desktop-prompt.txt
