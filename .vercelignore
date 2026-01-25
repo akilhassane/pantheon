@@ -1,0 +1,36 @@
+# Vercel Ignore File
+
+# Don't deploy these to Vercel
+node_modules/
+.git/
+.env
+.env.local
+*.log
+.DS_Store
+
+# Backend specific (when deploying frontend)
+backend/
+
+# Frontend specific (when deploying backend)
+frontend/
+
+# Client agent (never deploy to Vercel)
+client-agent/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Media
+media/
+
+# Database
+supabase/
+*.sql
+*.db
+
+# Docker files (not needed on Vercel)
+Dockerfile
+docker-compose*.yml
+.dockerignore

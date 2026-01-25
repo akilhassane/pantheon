@@ -4,8 +4,9 @@
   "description": "AI-powered Kali Linux command executor",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node server-railway.js",
+    "start:full": "node server.js",
+    "dev": "nodemon server-railway.js",
     "test": "jest"
   },
   "dependencies": {

@@ -8,7 +8,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  output: 'standalone',
+  // Remove 'standalone' for Vercel deployment
   experimental: {
     missingSuspenseWithCSRBailout: false,
   },
