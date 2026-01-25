@@ -33,24 +33,9 @@
 
 ### How to Use Pantheon Platform
 
-https://github.com/akilhassane/pantheon/assets/YOUR_USER_ID/video-showing-how-to-use-the-platform.mp4
+> **Demo videos coming soon!** Star the repo to get notified when they're available.
 
-> **Watch the full platform walkthrough above** to see Pantheon in action!
-
-<details>
-<summary>📹 Additional Tutorial Videos</summary>
-
-### Adding AI Models
-Learn how to add and configure AI models:
-
-https://github.com/akilhassane/pantheon/raw/main/Media/VIdeo%20showing%20how%20to%20add%20models%20-%20Made%20with%20Clipchamp.mp4
-
-### Custom Modes
-See how to create custom AI modes:
-
-https://github.com/akilhassane/pantheon/raw/main/Media/Video%20showing%20how%20to%20add%20custom%20modes%20-%20Made%20with%20Clipchamp.mp4
-
-</details>
+---
 
 ---
 
