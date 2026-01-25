@@ -67,6 +67,10 @@ const wss = new WebSocket.Server({ server });
 const CollaborationWebSocketHandler = require('./collaboration-websocket');
 const collaborationWS = new CollaborationWebSocketHandler(wss);
 
+// Initialize Agent WebSocket Handler
+const AgentWebSocketHandler = require('./agent-websocket-handler');
+const agentWS = new AgentWebSocketHandler();
+
 // Store connected frontend clients
 const frontendClients = new Set();
 
@@ -75,6 +79,24 @@ wss.on('connection', (ws, req) => {
   const userId = url.searchParams.get('userId');
   const userName = url.searchParams.get('userName');
   const projectId = url.searchParams.get('projectId');
+  const agentId = url.searchParams.get('agentId');
+  const isAgent = url.searchParams.get('type') === 'agent';
+
+  // If this is an agent connection
+  if (isAgent && agentId) {
+    console.log(`🤖 Agent WebSocket connection request: ${agentId}`);
+    
+    // Get agent metadata from headers or query params
+    const metadata = {
+      hostname: url.searchParams.get('hostname') || 'unknown',
+      platform: url.searchParams.get('platform') || 'unknown',
+      dockerVersion: url.searchParams.get('dockerVersion') || 'unknown',
+      userId: url.searchParams.get('userId') || null
+    };
+    
+    agentWS.registerAgent(ws, agentId, metadata);
+    return;
+  }
 
   // If this is a collaboration connection (has userId, userName, projectId)
   if (userId && userName && projectId) {
@@ -330,6 +352,15 @@ console.log('✅ Collaboration routes initialized');
 const usageRoutes = require('./usage-routes');
 app.use('/api/usage', usageRoutes);
 console.log('✅ Usage tracking routes initialized');
+
+// Setup agent routes
+const { setupAgentRoutes } = require('./agent-routes');
+const agentRoutes = setupAgentRoutes(agentWS);
+app.use('/api/agents', agentRoutes);
+console.log('✅ Agent management routes initialized');
+
+// Expose agentWS to project manager for remote container operations
+projectManager.setAgentHandler(agentWS);
 
 // Cleanup on shutdown
 process.on('SIGINT', async () => {
