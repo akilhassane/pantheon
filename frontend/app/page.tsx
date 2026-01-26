@@ -78,24 +78,31 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
     return <div className="w-full h-full bg-black rounded-lg" />
   }
   
-  // Build VNC URL through backend proxy
-  // Backend proxies to Cloudflare tunnel URLs stored in database
-  const backendUrl = typeof window !== 'undefined'
-    ? 'http://localhost:3002'
-    : 'http://backend:3002';
+  // Build VNC URL - use Cloudflare tunnel URL if available, otherwise proxy through backend
+  let vncUrl;
   
-  const baseUrl = `${backendUrl}/api/proxy/${project.id}/vnc`;
-  
-  // Always use vnc_lite.html (modified with wss:// support)
-  const vncFile = 'vnc_lite.html'
-  const vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
+  if (project.vncUrl) {
+    // Use direct Cloudflare tunnel URL
+    vncUrl = project.vncUrl;
+    console.log('🔗 Using direct VNC tunnel URL:', vncUrl);
+  } else {
+    // Fallback to backend proxy for local development
+    const backendUrl = typeof window !== 'undefined'
+      ? 'http://localhost:3002'
+      : 'http://backend:3002';
+    
+    const baseUrl = `${backendUrl}/api/proxy/${project.id}/vnc`;
+    const vncFile = 'vnc_lite.html';
+    vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`;
+    
+    console.log('🔗 Using backend proxy VNC URL:', vncUrl);
+  }
   
   console.log('🔗 VNC URL Configuration:', {
     projectName: project.name,
     projectId: project.id,
     containerName: project.containerName,
-    backendUrl,
-    proxyUrl: baseUrl,
+    hasDirectUrl: !!project.vncUrl,
     finalVncUrl: vncUrl
   })
   
