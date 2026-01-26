@@ -50,10 +50,9 @@ export function useCollaborationWebSocket({
   const connect = useCallback(() => {
     if (!projectId || !userId) return
 
-    // Use NEXT_PUBLIC_BACKEND_URL if available, otherwise fallback to localhost
-    const backendHttpUrl = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002')
-      : 'http://backend:3002'
+    // Hardcoded Railway backend URL for now
+    // TODO: Move to environment variable once Vercel env vars are properly configured
+    const backendHttpUrl = 'https://pantheon-backend-production.up.railway.app'
     
     // Convert HTTP URL to WebSocket URL
     const backendUrl = backendHttpUrl.replace(/^http/, 'ws')
