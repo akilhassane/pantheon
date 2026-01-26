@@ -52,7 +52,7 @@ export function useCollaborationWebSocket({
 
     // Use NEXT_PUBLIC_BACKEND_URL if available, otherwise fallback to localhost
     const backendHttpUrl = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`)
+      ? (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002')
       : 'http://backend:3002'
     
     // Convert HTTP URL to WebSocket URL
