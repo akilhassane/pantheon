@@ -1021,9 +1021,10 @@ export default function Home() {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   // Vercel AI SDK useChat Hook
-  // Use environment variable or detect if running in Docker
+  // For local development, always use localhost for Docker operations
+  // For production, this would need to be configured differently
   const backendUrl = typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`)
+    ? 'http://localhost:3002'  // Always use local backend for Docker operations
     : 'http://backend:3002';
 
   const chatHelpers = useChat({
