@@ -81,7 +81,7 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
   // Build VNC URL through backend proxy
   // Backend proxies to Cloudflare tunnel URLs stored in database
   const backendUrl = typeof window !== 'undefined'
-    ? 'https://pantheon-backend-production.up.railway.app'
+    ? 'http://localhost:3002'
     : 'http://backend:3002';
   
   const baseUrl = `${backendUrl}/api/proxy/${project.id}/vnc`;
@@ -1021,9 +1021,9 @@ export default function Home() {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   // Vercel AI SDK useChat Hook
-  // Use Railway backend for production
+  // Use localhost backend for Docker operations
   const backendUrl = typeof window !== 'undefined'
-    ? 'https://pantheon-backend-production.up.railway.app'
+    ? 'http://localhost:3002'
     : 'http://backend:3002';
 
   const chatHelpers = useChat({
