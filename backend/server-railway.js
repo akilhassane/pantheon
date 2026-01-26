@@ -46,6 +46,55 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ==================== SUPABASE AUTH PROXY ====================
+// Proxy Supabase auth requests to the actual Supabase instance
+// This allows the frontend to use the backend URL for auth
+
+app.all('/auth/*', async (req, res) => {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const path = req.path; // e.g., /auth/v1/authorize
+    const queryString = new URLSearchParams(req.query).toString();
+    const targetUrl = `${supabaseUrl}${path}${queryString ? '?' + queryString : ''}`;
+    
+    console.log(`[Auth Proxy] ${req.method} ${path} -> ${targetUrl}`);
+    
+    // Forward the request to Supabase
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        'host': new URL(supabaseUrl).host,
+        'apikey': process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SERVICE_KEY
+      },
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined
+    });
+    
+    // Forward response headers
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+    
+    // Forward response
+    res.status(response.status);
+    
+    if (response.headers.get('content-type')?.includes('application/json')) {
+      const data = await response.json();
+      res.json(data);
+    } else {
+      const text = await response.text();
+      res.send(text);
+    }
+  } catch (error) {
+    console.error('[Auth Proxy] Error:', error);
+    res.status(500).json({ 
+      error: 'AUTH_PROXY_ERROR', 
+      message: error.message 
+    });
+  }
+});
+
 // ==================== SESSION ROUTES ====================
 
 // Get sessions by project
