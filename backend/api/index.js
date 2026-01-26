@@ -3,6 +3,11 @@
 // Containers run on client machines via client-agent
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -48,6 +53,11 @@ app.get('/api/health', (req, res) => {
 
 // Placeholder routes for client-agent communication
 // These will be implemented to coordinate with client agents
+
+// Serve fixed terminal HTML that uses correct WebSocket URL for Cloudflare
+app.get('/api/proxy/:projectId/terminal-fixed.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'terminal-fixed.html'));
+});
 
 app.post('/api/agent/register', (req, res) => {
   const { clientId, capabilities } = req.body;
