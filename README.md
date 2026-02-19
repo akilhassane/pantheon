@@ -91,20 +91,26 @@ The installer will automatically:
 2. Create a default configuration
 3. Start all services
 
-**No manual configuration needed!** The system will run with default settings.
+### Initial Setup
 
-To add your own API keys later (optional):
-1. Edit `.env` file
-2. Add your Supabase credentials and AI provider API keys
-3. Restart: `docker-compose -f docker-compose.production.yml restart`
+After installation, you need to configure authentication:
 
-### Access
+1. **Configure Keycloak** (required for login):
+   - Go to http://localhost:8080
+   - Login with username: `admin`, password: `admin`
+   - Navigate to Identity Providers
+   - Set up Google or Microsoft OAuth (see [Quick Start Guide](./docs/QUICK_START.md) for detailed steps)
 
-Once installation completes, open http://localhost:3000 in your browser.
+2. **Access Pantheon**:
+   - Open http://localhost:3000
+   - Sign in with your configured identity provider
 
-**That's it!** 🎉
+3. **Add AI Provider Keys** (optional):
+   - Edit `.env` file
+   - Add your AI provider API keys (OpenAI, Anthropic, etc.)
+   - Restart: `docker-compose -f docker-compose.production.yml restart`
 
-For detailed installation instructions, see [Installation Guide](./docs/INSTALLATION_GUIDE.md).
+For detailed installation instructions, see [Installation Guide](./INSTALLATION.md).
 
 ---
 
@@ -112,7 +118,7 @@ For detailed installation instructions, see [Installation Guide](./docs/INSTALLA
 
 ### Getting Started
 
-- 📘 [Installation Guide](./docs/INSTALLATION_GUIDE.md) - Complete installation instructions
+- 📘 [Installation Guide](./INSTALLATION.md) - Complete installation instructions
 - 📗 [User Guide](./docs/USER_GUIDE.md) - Learn how to use Pantheon
 - 📙 [Quick Start Tutorial](./docs/QUICK_START.md) - Get up and running in 10 minutes
 
