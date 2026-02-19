@@ -1,0 +1,218 @@
+﻿
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ  Find Best Free OpenRouter Model for Click Edge           Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+
+≡ƒôí Fetching all models from OpenRouter...
+
+Γ£à Found 340 total models
+
+Γ£à Found 31 free models
+
+≡ƒôè Free Models (sorted by parameter count):
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+1. nousresearch/hermes-3-llama-3.1-405b:free
+   Parameters: 405B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"nousresearch/hermes-3-llama-3.1-405b:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+2. qwen/qwen3-vl-235b-a22b-thinking
+   Parameters: 235B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 402: {"error":{"message":"Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits","code":402}}
+
+3. qwen/qwen3-235b-a22b-thinking-2507
+   Parameters: 235B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 402: {"error":{"message":"Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits","code":402}}
+
+4. openai/gpt-oss-120b:free
+   Parameters: 120B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 404: {"error":{"message":"No endpoints found matching your data policy (Free model publication). Configure: https://openrouter.ai/settings/privacy","code":404}}
+
+5. qwen/qwen3-next-80b-a3b-instruct:free
+   Parameters: 80B
+   Context: 262144
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"qwen/qwen3-next-80b-a3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+6. meta-llama/llama-3.3-70b-instruct:free
+   Parameters: 70B
+   Context: 128000
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"meta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+7. nvidia/nemotron-3-nano-30b-a3b:free
+   Parameters: 30B
+   Context: 256000
+   Testing with "Hello" message...
+   Γ£à Response: "Hello! It's great to see you. ≡ƒÿè"
+
+8. qwen/qwen3-vl-30b-a3b-thinking
+   Parameters: 30B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 402: {"error":{"message":"Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits","code":402}}
+
+9. google/gemma-3-27b-it:free
+   Parameters: 27B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ£à Response: "Hi there! ≡ƒæï 
+
+Happy to be chatting with you. ≡ƒÿè
+
+
+
+"
+
+10. cognitivecomputations/dolphin-mistral-24b-venice-edition:free
+   Parameters: 24B
+   Context: 32768
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"cognitivecomputations/dolphin-mistral-24b-venice-edition:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+11. mistralai/mistral-small-3.1-24b-instruct:free
+   Parameters: 24B
+   Context: 128000
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"mistralai/mistral-small-3.1-24b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+12. openai/gpt-oss-20b:free
+   Parameters: 20B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 404: {"error":{"message":"No endpoints found matching your data policy (Free model publication). Configure: https://openrouter.ai/settings/privacy","code":404}}
+
+13. nvidia/nemotron-nano-12b-v2-vl:free
+   Parameters: 12B
+   Context: 128000
+   Testing with "Hello" message...
+   Γ£à Response: ""
+
+14. google/gemma-3-12b-it:free
+   Parameters: 12B
+   Context: 32768
+   Testing with "Hello" message...
+   Γ£à Response: "Hello there! ≡ƒÿè"
+
+15. nvidia/nemotron-nano-9b-v2:free
+   Parameters: 9B
+   Context: 128000
+   Testing with "Hello" message...
+   Γ£à Response: ""
+
+16. google/gemma-3n-e4b-it:free
+   Parameters: 4B
+   Context: 8192
+   Testing with "Hello" message...
+   Γ£à Response: "Hi there! ≡ƒæï 
+
+How can I help you today?
+
+
+
+"
+
+17. qwen/qwen3-4b:free
+   Parameters: 4B
+   Context: 40960
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"qwen/qwen3-4b:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+18. google/gemma-3-4b-it:free
+   Parameters: 4B
+   Context: 32768
+   Testing with "Hello" message...
+   Γ£à Response: "Hello there! ≡ƒÿè"
+
+19. meta-llama/llama-3.2-3b-instruct:free
+   Parameters: 3B
+   Context: 131072
+   Testing with "Hello" message...
+   Γ¥î Failed: 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"meta-llama/llama-3.2-3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","provider_name":"Venice","is_byok":false}},"user_id":"user_32CXevE4f5Ti8sSRdFkWPigqrZp"}
+
+20. google/gemma-3n-e2b-it:free
+   Parameters: 2B
+   Context: 8192
+   Testing with "Hello" message...
+   Γ£à Response: "Hello there! ≡ƒÿè 
+"
+
+================================================================================
+WORKING FREE MODELS SUMMARY
+================================================================================
+
+Γ£à Found 8 working free models:
+
+1. nvidia/nemotron-3-nano-30b-a3b:free
+   Parameters: 30B
+   Context: 256000
+
+2. google/gemma-3-27b-it:free
+   Parameters: 27B
+   Context: 131072
+
+3. nvidia/nemotron-nano-12b-v2-vl:free
+   Parameters: 12B
+   Context: 128000
+
+4. google/gemma-3-12b-it:free
+   Parameters: 12B
+   Context: 32768
+
+5. nvidia/nemotron-nano-9b-v2:free
+   Parameters: 9B
+   Context: 128000
+
+6. google/gemma-3n-e4b-it:free
+   Parameters: 4B
+   Context: 8192
+
+7. google/gemma-3-4b-it:free
+   Parameters: 4B
+   Context: 32768
+
+8. google/gemma-3n-e2b-it:free
+   Parameters: 2B
+   Context: 8192
+
+================================================================================
+TESTING CLICK EDGE WORKFLOW
+================================================================================
+
+≡ƒÅå Best Model: nvidia/nemotron-3-nano-30b-a3b:free
+   Parameters: 30B
+   Context: 256000
+
+
+≡ƒº¬ Testing click Edge workflow with nvidia/nemotron-3-nano-30b-a3b:free...
+
+
+≡ƒôè Click Edge Test Results:
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓÜá∩╕Å  Partial success:
+   Γ¥î Screenshot taken
+   Γ¥î Edge clicked
+
+================================================================================
+RECOMMENDATION
+================================================================================
+
+ΓÜá∩╕Å  Best free model: nvidia/nemotron-3-nano-30b-a3b:free
+   Parameters: 30B
+   Note: May need better model for complex workflows
+
+≡ƒÆí Consider using:
+   - Gemini 2.5 Flash (free, but rate limited)
+   - GPT-4o-mini ($0.15/1M tokens)
+   - Claude 3.5 Haiku ($0.25/1M tokens)
+
+================================================================================

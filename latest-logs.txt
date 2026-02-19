@@ -1,0 +1,100 @@
+﻿≡ƒô¥ AI Response: "."
+Γ£à Continuation complete: 1538 chars generated
+Γ£à No more tool calls, AI is done
+Γ£à Sent done message - AI finished responding
+[StreamHealth] Γ£à Stream openrouter-1770755864123-0oqgy6e6k completed successfully
+[StreamHealth] ≡ƒôè Stream openrouter-1770755864123-0oqgy6e6k completed: { duration: '21.72s', messagesSent: 484, bytesSent: 21195 }
+[SessionRoutes] POST /api/sessions/39713146-d8f3-4493-9f83-ad1a0d26cefb/messages
+[SessionRoutes] Message role: assistant
+[SessionRoutes] Message has mediaBlocks: true
+[SessionRoutes] Message has introText: false
+[SessionRoutes] Saving complete message to database...
+Γ£à Usage tracked: liquid/lfm-2.5-1.2b-instruct:free - 2047 tokens
+≡ƒôè Usage tracked: 2047 tokens
+Γ£à Stream ended
+[EnhancedSessionManager] Γ£à Saved complete assistant message for session 39713146-d8f3-4493-9f83-ad1a0d26cefb
+[EnhancedSessionManager]    With 3 mediaBlocks
+[SessionRoutes] Γ£à Message saved successfully
+[ProjectRoutes] GET /api/projects
+[CollaborationRoutes] GET /api/collaborations
+[CollaborationRoutes] GET /api/projects/f9cb0630-c860-4c13-826a-b581eece6abd/collaborators
+[CollaborationManager] Getting collaborators for project: f9cb0630-c860-4c13-826a-b581eece6abd requesting user: 5f9e36c9-f843-41d2-bffa-a07319a82ae1
+[CollaborationManager] Project query result: {
+  found: true,
+  error: undefined,
+  ownerId: '5f9e36c9-f843-41d2-bffa-a07319a82ae1'
+}
+[CollaborationManager] Project owner: 5f9e36c9-f843-41d2-bffa-a07319a82ae1
+[CollaborationRoutes] GET /api/collaborations
+[CollaborationManager] Owner profile: null
+[ProjectManager] Listed 2 projects for user 5f9e36c9-f843-41d2-bffa-a07319a82ae1
+[ProjectRoutes] GET /api/projects
+[SessionRoutes] GET /api/sessions/projects/f9cb0630-c860-4c13-826a-b581eece6abd
+[SessionRoutes] GET /api/sessions/projects/21cecb6c-379d-4fc3-804e-d4a9fc879114
+[CollaborationManager] Owner auth fetched
+[CollaborationManager] Owner ID: 5f9e36c9-f843-41d2-bffa-a07319a82ae1
+[CollaborationManager] Owner auth metadata: {
+  avatar_url: 'https://lh3.googleusercontent.com/a/ACg8ocLQiYwpB8i6gjPIuKSRnGgP_q4nnVlDk3RYJexxaxfM2Sl5jA=s96-c',
+  email: 'akilhassane5@gmail.com',
+  email_verified: true,
+  full_name: 'Akil Hassane',
+  iss: 'https://accounts.google.com',
+  name: 'Akil Hassane',
+  phone_verified: false,
+  picture: 'https://lh3.googleusercontent.com/a/ACg8ocLQiYwpB8i6gjPIuKSRnGgP_q4nnVlDk3RYJexxaxfM2Sl5jA=s96-c',
+  provider_id: '106312382169203583598',
+  sub: '106312382169203583598'
+}
+[CollaborationManager] Owner data: {
+  user_id: '5f9e36c9-f843-41d2-bffa-a07319a82ae1',
+  user_name: 'akilhassane5@gmail.com',
+  email: 'akilhassane5@gmail.com',
+  avatar_url: 'https://lh3.googleusercontent.com/a/ACg8ocLQiYwpB8i6gjPIuKSRnGgP_q4nnVlDk3RYJexxaxfM2Sl5jA=s96-c',
+  permissions: 'owner',
+  is_owner: true,
+  joined_at: '2026-01-26T10:34:49.984+00:00',
+  last_active: '2026-01-26T10:34:49.984+00:00'
+}
+[CollaborationManager] Final collaborators list: [
+  {
+    user_id: '5f9e36c9-f843-41d2-bffa-a07319a82ae1',
+    user_name: 'akilhassane5@gmail.com',
+    email: 'akilhassane5@gmail.com',
+    avatar_url: 'https://lh3.googleusercontent.com/a/ACg8ocLQiYwpB8i6gjPIuKSRnGgP_q4nnVlDk3RYJexxaxfM2Sl5jA=s96-c',
+    permissions: 'owner',
+    is_owner: true,
+    joined_at: '2026-01-26T10:34:49.984+00:00',
+    last_active: '2026-01-26T10:34:49.984+00:00'
+  }
+]
+[SessionRoutes] GET /api/sessions/7080c278-ba20-4083-b479-c2a091b248c3/history
+[SessionRoutes] GET /api/sessions/39713146-d8f3-4493-9f83-ad1a0d26cefb/history
+[SessionRoutes] GET /api/sessions/901f4d9f-cfeb-46e2-bdab-1dbb029800d6/history
+[SessionRoutes] GET /api/sessions/17fb3680-c33a-4868-b6d0-50694893a13a/history
+[SessionRoutes] GET /api/sessions/97f88269-f322-4ec9-ae8d-72e5890dd86e/history
+[ProjectManager] Listed 2 projects for user 5f9e36c9-f843-41d2-bffa-a07319a82ae1
+[SessionRoutes] GET /api/sessions/projects/f9cb0630-c860-4c13-826a-b581eece6abd
+[SessionRoutes] GET /api/sessions/projects/21cecb6c-379d-4fc3-804e-d4a9fc879114
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete assistant message with 1 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[SessionRoutes] GET /api/sessions/7080c278-ba20-4083-b479-c2a091b248c3/history
+[SessionRoutes] GET /api/sessions/17fb3680-c33a-4868-b6d0-50694893a13a/history
+[SessionRoutes] GET /api/sessions/97f88269-f322-4ec9-ae8d-72e5890dd86e/history
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete assistant message with 1 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete assistant message with 3 mediaBlocks
+[SessionRoutes] GET /api/sessions/39713146-d8f3-4493-9f83-ad1a0d26cefb/history
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete assistant message with 3 mediaBlocks
+[SessionRoutes] GET /api/sessions/901f4d9f-cfeb-46e2-bdab-1dbb029800d6/history
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete assistant message with 3 mediaBlocks
+[EnhancedSessionManager] Loaded complete user message with 0 mediaBlocks
+[EnhancedSessionManager] Loaded complete assistant message with 3 mediaBlocks

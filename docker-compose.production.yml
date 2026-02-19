@@ -4,27 +4,82 @@ version: '3.8'
 # This file uses pre-built images from Docker Hub for easy deployment
 
 services:
+  # PostgreSQL Database - Local database server
+  postgres:
+    image: akilhassane/pantheon:postgres
+    container_name: pantheon-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ai_backend
+      - POSTGRES_MULTIPLE_DATABASES=keycloak
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - pantheon-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Keycloak - OAuth/OIDC Authentication Server
+  keycloak:
+    image: akilhassane/pantheon:keycloak
+    container_name: pantheon-keycloak
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+      - KC_DB_USERNAME=postgres
+      - KC_DB_PASSWORD=postgres
+      - KC_HOSTNAME=localhost
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
+      - KC_HEALTH_ENABLED=true
+    entrypoint: ["/opt/keycloak/bin/kc.sh"]
+    command: ["start-dev"]
+    networks:
+      - pantheon-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   # Frontend - Next.js web application
   frontend:
     image: akilhassane/pantheon:frontend
     container_name: pantheon-frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       # Supabase Configuration (Public)
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:5432}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-default-anon-key}
       # Backend API URL
       - NEXT_PUBLIC_API_URL=http://localhost:3002
       # Optional: Analytics
       - NEXT_PUBLIC_ANALYTICS_ID=${ANALYTICS_ID:-}
     depends_on:
-      - backend
-    restart: unless-stopped
+      backend:
+        condition: service_healthy
     networks:
       - pantheon-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -34,20 +89,26 @@ services:
   backend:
     image: akilhassane/pantheon:backend
     container_name: pantheon-backend
+    restart: unless-stopped
     ports:
       - "3002:3002"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       # Supabase Configuration (Server-side)
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:5432}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-default-service-key}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-default-anon-key}
+      
+      # Local PostgreSQL Configuration (primary database)
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_backend
+      - LOCAL_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_backend
+      - USE_LOCAL_POSTGRES=true
       
       # AI Provider API Keys
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
       - COHERE_API_KEY=${COHERE_API_KEY:-}
@@ -58,7 +119,7 @@ services:
       - DEBUG=${DEBUG:-false}
       
       # MCP Configuration
-      - MCP_MASTER_SECRET=${MCP_MASTER_SECRET:-}
+      - MCP_MASTER_SECRET=${MCP_MASTER_SECRET:-default-master-secret}
       - HOST_WINDOWS_VM_FILES_PATH=${HOST_WINDOWS_VM_FILES_PATH:-/app/windows-vm-files}
     volumes:
       # Docker socket for container management
@@ -69,11 +130,13 @@ services:
       - pantheon-windows-files:/app/windows-vm-files
       # Project workspaces
       - pantheon-workspaces:/app/workspaces
-    restart: unless-stopped
     networks:
       - pantheon-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -83,17 +146,17 @@ services:
   windows-tools-api:
     image: akilhassane/pantheon:windows-tools-api
     container_name: pantheon-windows-tools
-    ports:
-      - "3003:3003"
-    environment:
-      - PORT=3003
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
     restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:5432}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-default-service-key}
     networks:
       - pantheon-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -101,12 +164,24 @@ services:
 
 networks:
   pantheon-network:
+    name: pantheon-network
     driver: bridge
     ipam:
+      driver: default
       config:
         - subnet: 172.25.0.0/16
+          gateway: 172.25.0.1
+    driver_opts:
+      com.docker.network.bridge.name: pantheon0
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.driver.mtu: "1500"
 
 volumes:
+  # PostgreSQL data
+  postgres-data:
+    driver: local
+  
   # Persistent data storage
   pantheon-data:
     driver: local

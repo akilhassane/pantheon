@@ -1,0 +1,610 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows Tools API - Encrypted Service</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header h1 { color: #667eea; font-size: 2.5em; margin-bottom: 10px; }
+        .header .subtitle { color: #666; font-size: 1.2em; }
+        .status {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        .security-badge {
+            display: inline-block;
+            background: #ef4444;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 15px;
+            margin-left: 10px;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        .card h2 { color: #667eea; margin-bottom: 15px; font-size: 1.8em; }
+        .card h3 { color: #764ba2; margin: 20px 0 10px 0; font-size: 1.3em; }
+        .card h4 { color: #333; margin: 15px 0 8px 0; font-size: 1.1em; }
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .tool-card {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+        .tool-card .tool-name {
+            color: #667eea;
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .tool-card .tool-desc {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .info-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .success-box {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .warning-box {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            padding: 20px;
+        }
+        ul { margin-left: 20px; }
+        li { margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 Windows Tools API</h1>
+            <p class="subtitle">Encrypted Code-as-a-Service (AES-256-GCM)</p>
+            <span class="status">✓ Running</span>
+            <span class="security-badge">🔐 Encrypted</span>
+        </div>
+
+        <div class="success-box">
+            <strong>✓ Security:</strong> All Python scripts are encrypted with AES-256-GCM before transmission. Scripts are never saved to Windows VM disk - they're decrypted and executed in memory only.
+        </div>
+
+        <div class="card">
+            <h2>🔑 Authentication</h2>
+            <p>All API requests require Bearer token authentication with your project's API_SERVICE_KEY:</p>
+            <div class="code-block">Authorization: Bearer YOUR_API_SERVICE_KEY</div>
+            <div class="info-box">
+                <strong>Note:</strong> Each project has a unique API service key. Find yours in the project's .env file.
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📡 API Endpoints</h2>
+            <div class="grid">
+                <div>
+                    <h4>GET /</h4>
+                    <p>This documentation page</p>
+                </div>
+                <div>
+                    <h4>GET /health</h4>
+                    <p>Health check endpoint</p>
+                </div>
+                <div>
+                    <h4>GET /api/tools</h4>
+                    <p>List all available tools (requires auth)</p>
+                </div>
+                <div>
+                    <h4>POST /api/execute</h4>
+                    <p>Execute a tool (requires auth)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🛠️ Available Tools (10 Total)</h2>
+            <p>All tools return encrypted responses that must be decrypted by the client before execution.</p>
+
+            <!-- Tool 1: Execute PowerShell -->
+            <div class="tool-card">
+                <div class="tool-name">1. execute_powershell</div>
+                <div class="tool-desc">Execute PowerShell commands in Windows</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "execute_powershell",
+  "arguments": {
+    "command": "Get-Process | Select-Object -First 5"
+  }
+}</div>
+                
+                <h4>Response (Encrypted):</h4>
+                <div class="code-block">{
+  "success": true,
+  "encrypted": true,
+  "type": "powershell",
+  "encryptedCommand": "a3f8b2c4d5e6...",
+  "iv": "9c4e1a2b3c4d...",
+  "authTag": "7d2f3b4c5d6e...",
+  "decryption": {
+    "algorithm": "aes-256-gcm",
+    "key": "bfb89a5c8207..."
+  }
+}</div>
+                
+                <h4>After Client Decrypts & Executes:</h4>
+                <div class="code-block">{
+  "success": true,
+  "output": "ProcessName    Id\n-----------    --\nSystem         4\nRegistry       88..."
+}</div>
+            </div>
+
+            <!-- Tool 2: Take Screenshot -->
+            <div class="tool-card">
+                <div class="tool-name">2. take_screenshot</div>
+                <div class="tool-desc">Capture screen with OCR analysis, UI elements, and mouse position</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "take_screenshot",
+  "arguments": {}
+}</div>
+                
+                <h4>Response (Encrypted):</h4>
+                <div class="code-block">{
+  "success": true,
+  "encrypted": true,
+  "encryptedScript": "62b5fd857cd5...",
+  "iv": "6dc8b01803af...",
+  "authTag": "450e27621d61...",
+  "scriptName": "screenshot.py",
+  "arguments": ["--json"]
+}</div>
+                
+                <h4>After Client Decrypts & Executes:</h4>
+                <div class="code-block">{
+  "success": true,
+  "screenshot": "iVBORw0KGgo...", // Base64 PNG
+  "ocr_text": "Start Menu\\nSearch\\nFile Explorer...",
+  "ui_elements": [
+    {"type": "button", "text": "Start", "x": 10, "y": 1070}
+  ],
+  "mouse_position": {"x": 640, "y": 360},
+  "screen_size": {"width": 1920, "height": 1080}
+}</div>
+            </div>
+
+            <!-- Tool 3: Move Mouse -->
+            <div class="tool-card">
+                <div class="tool-name">3. move_mouse</div>
+                <div class="tool-desc">Move mouse cursor to specific coordinates</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "move_mouse",
+  "arguments": {
+    "x": 500,
+    "y": 300
+  }
+}</div>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "Mouse moved to (500, 300)",
+  "previous_position": {"x": 640, "y": 360},
+  "new_position": {"x": 500, "y": 300}
+}</div>
+            </div>
+
+            <!-- Tool 4: Click Mouse -->
+            <div class="tool-card">
+                <div class="tool-name">4. click_mouse</div>
+                <div class="tool-desc">Click mouse at specific coordinates</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "click_mouse",
+  "arguments": {
+    "x": 10,
+    "y": 1070,
+    "button": "left",
+    "double": false
+  }
+}</div>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "Clicked left at (10, 1070)",
+  "button": "left",
+  "position": {"x": 10, "y": 1070}
+}</div>
+            </div>
+
+            <!-- Tool 5: Get Mouse Position -->
+            <div class="tool-card">
+                <div class="tool-name">5. get_mouse_position</div>
+                <div class="tool-desc">Get current mouse cursor coordinates</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "get_mouse_position",
+  "arguments": {}
+}</div>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "x": 640,
+  "y": 360,
+  "timestamp": 1703596800000
+}</div>
+            </div>
+
+            <!-- Tool 6: Type Text -->
+            <div class="tool-card">
+                <div class="tool-name">6. type_text</div>
+                <div class="tool-desc">Type text using keyboard</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "type_text",
+  "arguments": {
+    "text": "Hello, World!",
+    "interval": 0.05
+  }
+}</div>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "Typed 13 characters",
+  "text": "Hello, World!",
+  "characters": 13
+}</div>
+            </div>
+
+            <!-- Tool 7: Press Key -->
+            <div class="tool-card">
+                <div class="tool-name">7. press_key</div>
+                <div class="tool-desc">Press keyboard key or key combination</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "press_key",
+  "arguments": {
+    "key": "enter"
+  }
+}</div>
+                
+                <h4>Common Keys:</h4>
+                <ul>
+                    <li><code>enter</code> - Enter key</li>
+                    <li><code>esc</code> - Escape key</li>
+                    <li><code>tab</code> - Tab key</li>
+                    <li><code>win</code> - Windows key</li>
+                    <li><code>ctrl+c</code> - Copy</li>
+                    <li><code>ctrl+v</code> - Paste</li>
+                    <li><code>alt+f4</code> - Close window</li>
+                </ul>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "Pressed key: enter",
+  "key": "enter"
+}</div>
+            </div>
+
+            <!-- Tool 8: Scroll Mouse -->
+            <div class="tool-card">
+                <div class="tool-name">8. scroll_mouse</div>
+                <div class="tool-desc">Scroll mouse wheel up or down</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "scroll_mouse",
+  "arguments": {
+    "direction": "down",
+    "clicks": 5,
+    "x": 640,
+    "y": 400
+  }
+}</div>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "Scrolled down 5 clicks",
+  "direction": "down",
+  "clicks": 5
+}</div>
+            </div>
+
+            <!-- Tool 9: Find Text on Screen -->
+            <div class="tool-card">
+                <div class="tool-name">9. find_text_on_screen</div>
+                <div class="tool-desc">Search for text on screen using OCR</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "find_text_on_screen",
+  "arguments": {
+    "text": "Start",
+    "partial_match": true
+  }
+}</div>
+                
+                <h4>After Execution:</h4>
+                <div class="code-block">{
+  "success": true,
+  "found": true,
+  "text": "Start",
+  "matches": [
+    {
+      "text": "Start",
+      "confidence": 0.95,
+      "position": {"x": 10, "y": 1070, "width": 50, "height": 30}
+    }
+  ],
+  "ocr_text": "Start Menu\\nSearch\\nFile Explorer..."
+}</div>
+            </div>
+
+            <!-- Tool 10: Send to Terminal -->
+            <div class="tool-card">
+                <div class="tool-name">10. send_to_terminal</div>
+                <div class="tool-desc">Send command to PowerShell terminal via WebSocket</div>
+                
+                <h4>Request:</h4>
+                <div class="code-block">{
+  "tool": "send_to_terminal",
+  "arguments": {
+    "command": "Get-Date",
+    "terminal_port": 10033
+  }
+}</div>
+                
+                <h4>Response (Encrypted):</h4>
+                <div class="code-block">{
+  "success": true,
+  "encrypted": true,
+  "encryptedScript": "a8c3f9d2e1b4...",
+  "iv": "7e2d4a5c8b9f...",
+  "authTag": "3f1c6d8e2a4b...",
+  "scriptName": "send-to-terminal.py",
+  "arguments": ["--command", "Get-Date", "--json"],
+  "environment": {
+    "TERMINAL_PORT": 10033
+  }
+}</div>
+                
+                <h4>After Client Decrypts & Executes:</h4>
+                <div class="code-block">{
+  "success": true,
+  "output": "Command sent to terminal",
+  "message": "Command 'Get-Date' sent successfully"
+}</div>
+                
+                <div class="info-box">
+                    <strong>Note:</strong> The terminal_port is automatically provided by the backend based on the project configuration. The command is sent via WebSocket to the PowerShell terminal.
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📝 Complete Example: Open Notepad</h2>
+            <p>Here's how an AI would use multiple tools to open Notepad and type text:</p>
+            
+            <h3>Step 1: Take Screenshot</h3>
+            <div class="code-block">POST /api/execute
+{
+  "tool": "take_screenshot",
+  "arguments": {}
+}
+// AI sees desktop with Start button</div>
+
+            <h3>Step 2: Click Start Button</h3>
+            <div class="code-block">POST /api/execute
+{
+  "tool": "click_mouse",
+  "arguments": {"x": 10, "y": 1070, "button": "left"}
+}
+// Start menu opens</div>
+
+            <h3>Step 3: Type 'notepad'</h3>
+            <div class="code-block">POST /api/execute
+{
+  "tool": "type_text",
+  "arguments": {"text": "notepad"}
+}
+// "notepad" appears in search</div>
+
+            <h3>Step 4: Press Enter</h3>
+            <div class="code-block">POST /api/execute
+{
+  "tool": "press_key",
+  "arguments": {"key": "enter"}
+}
+// Notepad launches</div>
+
+            <h3>Step 5: Type Message</h3>
+            <div class="code-block">POST /api/execute
+{
+  "tool": "type_text",
+  "arguments": {"text": "Hello World"}
+}
+// "Hello World" appears in Notepad</div>
+
+            <h3>Step 6: Verify</h3>
+            <div class="code-block">POST /api/execute
+{
+  "tool": "take_screenshot",
+  "arguments": {}
+}
+// AI sees "Hello World" in Notepad</div>
+        </div>
+
+        <div class="card">
+            <h2>🔐 Security Architecture</h2>
+            <div class="warning-box">
+                <strong>⚠️ Important:</strong> All responses are encrypted with AES-256-GCM. The client must decrypt before execution.
+            </div>
+            
+            <h3>Encryption Flow:</h3>
+            <ol>
+                <li><strong>API reads script</strong> from secure storage</li>
+                <li><strong>API encrypts</strong> with project-specific key</li>
+                <li><strong>API sends</strong> encrypted blob + IV + auth tag</li>
+                <li><strong>Client receives</strong> encrypted data</li>
+                <li><strong>Client decrypts</strong> in memory</li>
+                <li><strong>Client executes</strong> (never saves to disk)</li>
+                <li><strong>Client returns</strong> results</li>
+                <li><strong>Script discarded</strong> from memory</li>
+            </ol>
+
+            <h3>What AI Receives:</h3>
+            <div class="code-block">{
+  "encrypted": true,
+  "encryptedScript": "unreadable encrypted blob",
+  "iv": "initialization vector",
+  "authTag": "authentication tag",
+  "decryption": {
+    "algorithm": "aes-256-gcm",
+    "key": "project encryption key"
+  }
+}</div>
+
+            <h3>What AI Cannot Do:</h3>
+            <ul>
+                <li>❌ Read the Python script source code</li>
+                <li>❌ See the script logic</li>
+                <li>❌ Modify the scripts</li>
+                <li>❌ Extract scripts from Windows VM</li>
+                <li>❌ Reverse engineer the encryption</li>
+            </ul>
+
+            <h3>What AI Can Do:</h3>
+            <ul>
+                <li>✅ Call any of the 9 tools</li>
+                <li>✅ Receive encrypted responses</li>
+                <li>✅ Get execution results</li>
+                <li>✅ Analyze screenshots and OCR data</li>
+                <li>✅ Control Windows via mouse/keyboard</li>
+                <li>✅ Chain multiple tool calls</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>📊 System Information</h2>
+            <div class="grid">
+                <div>
+                    <h4>API Details</h4>
+                    <ul>
+                        <li><strong>Version:</strong> 2.0.0</li>
+                        <li><strong>Port:</strong> 8090</li>
+                        <li><strong>Protocol:</strong> HTTP/REST</li>
+                        <li><strong>Rate Limit:</strong> 100 req/min</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>Security</h4>
+                    <ul>
+                        <li><strong>Encryption:</strong> AES-256-GCM</li>
+                        <li><strong>Key Length:</strong> 256 bits</li>
+                        <li><strong>Per-Project Keys:</strong> Yes</li>
+                        <li><strong>Scripts on Disk:</strong> No (memory only)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>Tools</h4>
+                    <ul>
+                        <li><strong>Total Tools:</strong> 10</li>
+                        <li><strong>Python Scripts:</strong> 28</li>
+                        <li><strong>Script Storage:</strong> Encrypted</li>
+                        <li><strong>Execution:</strong> In-memory</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>Architecture</h4>
+                    <ul>
+                        <li><strong>Type:</strong> Code-as-a-Service</li>
+                        <li><strong>Transmission:</strong> Encrypted</li>
+                        <li><strong>Client:</strong> Thin (no code)</li>
+                        <li><strong>Security:</strong> High</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>Windows Tools API - Encrypted Code-as-a-Service</strong></p>
+            <p>All scripts encrypted with AES-256-GCM | Per-project encryption keys | Scripts never saved to disk</p>
+            <p style="margin-top: 10px; opacity: 0.8;">Port: 8090 | Status: Running | Security: High | Encryption: Enabled</p>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -68,7 +68,7 @@ services:
         - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
         - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         - NEXT_PUBLIC_API_URL=http://localhost:3002
-    image: docker-frontend:latest
+    image: akilhassane/pantheon:frontend
     container_name: ai-frontend
     restart: unless-stopped
     ports:
@@ -94,7 +94,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: docker-backend:latest
+    image: akilhassane/pantheon:backend
     container_name: ai-backend
     restart: unless-stopped
     ports:
