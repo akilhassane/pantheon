@@ -235,7 +235,7 @@ echo Pantheon Client Agent
 echo ========================================
 echo.
 echo Starting agent...
-echo Backend: https://pantheon-production-ad27.up.railway.app
+echo Backend: %BACKEND_URL%
 echo.
 
 node agent.js
@@ -352,7 +352,7 @@ autoUpdater.checkForUpdatesAndNotify();
 3. **Configure**
    - First run opens configuration wizard
    - User enters Supabase credentials
-   - Agent connects to Railway backend
+   - Agent connects to backend server
 
 4. **Run**
    - Agent runs in system tray

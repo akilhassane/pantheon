@@ -8,8 +8,8 @@ class StreamingHealthMonitor {
     this.activeStreams = new Map();
     this.config = {
       heartbeatInterval: 15000,      // Send heartbeat every 15 seconds
-      inactivityTimeout: 60000,      // Kill stream after 60 seconds of no activity
-      maxStreamDuration: 300000,     // Max 5 minutes per stream
+      inactivityTimeout: 30000,      // Kill stream after 30 seconds of no activity
+      maxStreamDuration: 1800000,    // Max 30 minutes per stream
       connectionCheckInterval: 5000  // Check connection health every 5 seconds
     };
   }
@@ -156,6 +156,15 @@ class StreamingHealthMonitor {
     // Send termination message if possible
     try {
       if (!stream.res.destroyed && !stream.res.writableEnded) {
+        // Send error message for unexpected terminations
+        const errorReasons = ['inactivity_timeout', 'heartbeat_failed', 'no_data_sent', 'stream_error', 'request_error'];
+        if (errorReasons.includes(reason)) {
+          stream.res.write(`0:${JSON.stringify({ 
+            type: 'text-delta', 
+            textDelta: '\n\nNetwork error: The connection was interrupted. Please try again.' 
+          })}\n`);
+        }
+        
         stream.res.write(`0:${JSON.stringify({ 
           type: 'stream-terminated', 
           reason,

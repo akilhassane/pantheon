@@ -4,58 +4,100 @@
  * Authentication Context
  * 
  * Provides authentication state and methods throughout the application
+ * Supports both Supabase and Keycloak authentication
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { hybridAuth, AuthUser, AuthSession } from '@/lib/auth-provider';
 
 interface AuthContextType {
-  user: User | null;
+  user: User | AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithGithub: () => Promise<void>;
+  signInWithMicrosoft: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Development mode bypass - skip auth if NEXT_PUBLIC_DEV_MODE is set
+  const devMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+
   useEffect(() => {
-    // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    if (devMode) {
+      // Create a mock user for development
+      const mockUser = {
+        id: 'dev-user-123',
+        email: 'dev@localhost',
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+      } as User;
+      
+      setUser(mockUser);
+      setLoading(false);
+      console.log('[Auth] Development mode - using mock user');
+      return;
+    }
+
+    // Check active session on mount using hybrid auth
+    hybridAuth.getSession().then((session) => {
       setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch((error) => {
+      console.error('[Auth] Failed to get session:', error);
       setLoading(false);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const unsubscribe = hybridAuth.onAuthStateChange((session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
-    if (error) {
-      throw new Error(error.message);
+    return () => unsubscribe();
+  }, [devMode]);
+
+  const signIn = async (email: string, password: string) => {
+    if (devMode) {
+      console.log('[Auth] Development mode - sign in bypassed');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    } catch (error: any) {
+      // Check if it's a timeout/network error
+      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+        throw new Error('Connection to authentication service timed out. Please check your network connection and try again.');
+      }
+      throw error;
     }
   };
 
   const signUp = async (email: string, password: string) => {
+    if (devMode) {
+      console.log('[Auth] Development mode - sign up bypassed');
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -67,27 +109,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      throw new Error(error.message);
+    if (devMode) {
+      console.log('[Auth] Development mode - sign out bypassed');
+      return;
     }
+
+    await hybridAuth.signOut();
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (error) {
-      throw new Error(error.message);
+    if (devMode) {
+      console.log('[Auth] Development mode - Google sign in bypassed');
+      return;
     }
+
+    await hybridAuth.signInWithOAuth('google');
   };
 
   const signInWithGithub = async () => {
+    if (devMode) {
+      console.log('[Auth] Development mode - GitHub sign in bypassed');
+      return;
+    }
+
+    // GitHub only supported via Supabase
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
@@ -100,6 +145,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithMicrosoft = async () => {
+    if (devMode) {
+      console.log('[Auth] Development mode - Microsoft sign in bypassed');
+      return;
+    }
+
+    await hybridAuth.signInWithOAuth('microsoft');
+  };
+
   const value = {
     user,
     loading,
@@ -108,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     signInWithGoogle,
     signInWithGithub,
+    signInWithMicrosoft,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -60,7 +60,7 @@ const WINDOWS_MCP_TOOLS = {
   
   'windows_click_mouse': {
     name: 'windows_click_mouse',
-    description: 'Click the mouse at specific coordinates on the Windows desktop.',
+    description: 'Click the mouse at specific coordinates on the Windows desktop. Use double=true for desktop icons.',
     parameters: {
       type: 'object',
       properties: {
@@ -76,6 +76,10 @@ const WINDOWS_MCP_TOOLS = {
           type: 'string',
           enum: ['left', 'right', 'middle'],
           description: 'Mouse button to click (default: left)'
+        },
+        double: {
+          type: 'boolean',
+          description: 'Perform double-click (required for desktop icons to open them)'
         }
       },
       required: ['x', 'y']

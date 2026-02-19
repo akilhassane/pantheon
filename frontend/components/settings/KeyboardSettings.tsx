@@ -62,13 +62,11 @@ export function KeyboardSettings() {
   }
 
   const resetToDefaults = () => {
-    if (confirm('Reset all keyboard shortcuts to defaults?')) {
-      Object.entries(DEFAULT_SETTINGS.keyboard.shortcuts).forEach(([actionId, binding]) => {
-        SettingsManager.update(`keyboard.shortcuts.${actionId}`, binding)
-      })
-      setSettings(SettingsManager.load())
-      setConflictWarning(null)
-    }
+    Object.entries(DEFAULT_SETTINGS.keyboard.shortcuts).forEach(([actionId, binding]) => {
+      SettingsManager.update(`keyboard.shortcuts.${actionId}`, binding)
+    })
+    setSettings(SettingsManager.load())
+    setConflictWarning(null)
   }
 
   const filteredActions = SHORTCUT_ACTIONS.filter(action =>

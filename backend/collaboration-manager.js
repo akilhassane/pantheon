@@ -4,7 +4,7 @@
  * Manages project sharing and collaboration features.
  * Handles Project ID generation, access control, and permissions.
  * 
- * MIGRATED TO SUPABASE: All data persistence uses Supabase PostgreSQL
+ * Uses local PostgreSQL via Supabase-compatible client
  */
 
 const crypto = require('crypto');
@@ -16,13 +16,13 @@ function uuidv4() {
 
 class CollaborationManager {
   constructor(supabaseClient) {
-    // Supabase client for data persistence
+    // Supabase client (connects to local PostgreSQL when USE_LOCAL_POSTGRES=true)
     if (!supabaseClient) {
       throw new Error('CollaborationManager requires a Supabase client instance');
     }
     this.supabase = supabaseClient;
     
-    console.log('[CollaborationManager] Initialized with Supabase persistence');
+    console.log('[CollaborationManager] Initialized with database persistence');
   }
 
   /**
@@ -48,17 +48,18 @@ class CollaborationManager {
         throw new Error('Project not found or you are not the owner');
       }
       
-      // Check if collaboration already exists
+      // Check if project share already exists
       const { data: existing } = await this.supabase
-        .from('collaborations')
+        .from('project_shares')
         .select('*')
         .eq('project_id', projectId)
         .single();
       
       if (existing) {
-        console.log('[CollaborationManager] Collaboration already exists, returning existing');
+        console.log('[CollaborationManager] Project share already exists, returning existing');
         return {
           ...existing,
+          shareToken: existing.share_token,
           createdAt: new Date(existing.created_at),
           lastModified: new Date(existing.last_modified)
         };
@@ -67,8 +68,8 @@ class CollaborationManager {
       // Generate unique share token (Project ID)
       const shareToken = uuidv4();
       
-      // Create collaboration record
-      const collaborationData = {
+      // Create project share record
+      const shareData = {
         project_id: projectId,
         share_token: shareToken,
         owner_id: ownerId,
@@ -80,8 +81,8 @@ class CollaborationManager {
       };
       
       const { data, error } = await this.supabase
-        .from('collaborations')
-        .insert([collaborationData])
+        .from('project_shares')
+        .insert([shareData])
         .select()
         .single();
       
@@ -93,6 +94,7 @@ class CollaborationManager {
       
       return {
         ...data,
+        shareToken: data.share_token,
         createdAt: new Date(data.created_at),
         lastModified: new Date(data.last_modified)
       };
@@ -119,71 +121,85 @@ class CollaborationManager {
         throw new Error('Invalid Project ID format');
       }
       
-      // Find collaboration by share token
-      const { data: collaboration, error: collabError } = await this.supabase
-        .from('collaborations')
+      // Find project share by share token
+      const { data: projectShare, error: shareError } = await this.supabase
+        .from('project_shares')
         .select('*')
         .eq('share_token', shareToken)
         .single();
       
-      if (collabError || !collaboration) {
+      if (shareError || !projectShare) {
         throw new Error('Project ID not found');
       }
       
-      // Check if collaboration has expired
-      if (collaboration.expires_at && new Date(collaboration.expires_at) < new Date()) {
+      // Check if share has expired
+      if (projectShare.expires_at && new Date(projectShare.expires_at) < new Date()) {
         throw new Error('This collaboration link has expired');
       }
       
-      // Check if user is already a collaborator
-      const { data: existingAccess } = await this.supabase
-        .from('collaborator_access')
+      const projectId = projectShare.project_id;
+      
+      // Get project details to check ownership
+      const { data: project, error: projectError } = await this.supabase
+        .from('projects')
         .select('*')
-        .eq('collaboration_id', collaboration.id)
+        .eq('id', projectId)
+        .single();
+      
+      if (projectError || !project) {
+        throw new Error('Project not found');
+      }
+      
+      // Prevent owner from joining their own project
+      if (project.owner_id === userId) {
+        console.log('[CollaborationManager] Owner cannot join their own project');
+        return {
+          project: {
+            ...project,
+            createdAt: new Date(project.created_at),
+            lastActive: new Date(project.last_active)
+          },
+          projectShare: {
+            ...projectShare,
+            createdAt: new Date(projectShare.created_at),
+            lastModified: new Date(projectShare.last_modified)
+          },
+          isNewCollaborator: false,
+          isOwner: true
+        };
+      }
+      
+      // Check if user is already a collaborator
+      const { data: existingCollab } = await this.supabase
+        .from('collaborations')
+        .select('*')
+        .eq('project_id', projectId)
         .eq('user_id', userId)
         .single();
       
       let isNewCollaborator = false;
       
-      if (existingAccess) {
+      if (existingCollab) {
         console.log('[CollaborationManager] User already has access');
-        // Update last active
-        await this.supabase
-          .from('collaborator_access')
-          .update({ last_active: new Date().toISOString() })
-          .eq('id', existingAccess.id);
       } else {
-        // Add user to collaborator access list
-        const accessData = {
-          collaboration_id: collaboration.id,
+        // Add user to collaborations
+        const collabData = {
+          project_id: projectId,
           user_id: userId,
-          user_name: userName,
-          permissions: 'read', // Default to read-only
-          joined_at: new Date().toISOString(),
-          last_active: new Date().toISOString()
+          role: 'viewer', // Default to viewer
+          created_at: new Date().toISOString()
         };
         
-        const { error: accessError } = await this.supabase
-          .from('collaborator_access')
-          .insert([accessData]);
+        const { error: collabError } = await this.supabase
+          .from('collaborations')
+          .insert([collabData]);
         
-        if (accessError) {
-          throw new Error(`Failed to add collaborator: ${accessError.message}`);
+        if (collabError) {
+          throw new Error(`Failed to add collaborator: ${collabError.message}`);
         }
         
         isNewCollaborator = true;
         console.log('[CollaborationManager] ✅ User added as collaborator');
-      }
-      
-      // Get project details
-      const { data: project, error: projectError } = await this.supabase
-        .from('projects')
-        .select('*')
-        .eq('id', collaboration.project_id)
-        .single();
-      
-      if (projectError || !project) {
-        throw new Error('Project not found');
       }
       
       return {
@@ -192,10 +208,10 @@ class CollaborationManager {
           createdAt: new Date(project.created_at),
           lastActive: new Date(project.last_active)
         },
-        collaboration: {
-          ...collaboration,
-          createdAt: new Date(collaboration.created_at),
-          lastModified: new Date(collaboration.last_modified)
+        projectShare: {
+          ...projectShare,
+          createdAt: new Date(projectShare.created_at),
+          lastModified: new Date(projectShare.last_modified)
         },
         isNewCollaborator
       };
@@ -215,29 +231,22 @@ class CollaborationManager {
     console.log(`[CollaborationManager] User ${userId} leaving project ${projectId}`);
     
     try {
-      // Find collaboration
-      const { data: collaboration } = await this.supabase
+      // Remove user from collaborations
+      const { data, error } = await this.supabase
         .from('collaborations')
-        .select('*')
-        .eq('project_id', projectId)
-        .single();
-      
-      if (!collaboration) {
-        throw new Error('Collaboration not found');
-      }
-      
-      // Remove user from collaborator access
-      const { error } = await this.supabase
-        .from('collaborator_access')
         .delete()
-        .eq('collaboration_id', collaboration.id)
-        .eq('user_id', userId);
+        .eq('project_id', projectId)
+        .eq('user_id', userId)
+        .select();
       
       if (error) {
+        console.error('[CollaborationManager] ❌ Delete error:', error);
         throw new Error(`Failed to leave project: ${error.message}`);
       }
       
-      console.log('[CollaborationManager] ✅ User left project');
+      console.log('[CollaborationManager] ✅ User left project, deleted rows:', data);
+      
+      return { success: true, deletedRows: data };
       
     } catch (error) {
       console.error('[CollaborationManager] ❌ Failed to leave project:', error.message);
@@ -275,34 +284,42 @@ class CollaborationManager {
       
       console.log('[CollaborationManager] Project owner:', project.owner_id);
       
-      // Get owner's profile
-      const { data: ownerProfile } = await this.supabase
-        .from('profiles')
-        .select('id, email, full_name, avatar_url')
+      // Get owner's user data from users table
+      const { data: ownerUser } = await this.supabase
+        .from('users')
+        .select('id, email, avatar_url')
         .eq('id', project.owner_id)
         .single();
       
-      console.log('[CollaborationManager] Owner profile:', ownerProfile);
+      console.log('[CollaborationManager] Owner user:', ownerUser);
       
-      // Get owner's auth metadata for avatar
-      const { data: ownerAuth } = await this.supabase.auth.admin.getUserById(project.owner_id);
-      console.log('[CollaborationManager] Owner auth fetched');
+      // Get owner's auth metadata for avatar (only if using Supabase cloud)
+      let ownerAuth = null;
+      if (this.supabase.auth && this.supabase.auth.admin) {
+        try {
+          const result = await this.supabase.auth.admin.getUserById(project.owner_id);
+          ownerAuth = result.data;
+          console.log('[CollaborationManager] Owner auth fetched');
+        } catch (authError) {
+          console.log('[CollaborationManager] ⚠️ Could not fetch owner auth (local DB?):', authError.message);
+        }
+      }
       
-      // Find collaboration
-      const { data: collaboration } = await this.supabase
-        .from('collaborations')
+      // Find project share
+      const { data: projectShare } = await this.supabase
+        .from('project_shares')
         .select('*')
         .eq('project_id', projectId)
         .single();
       
       const collaboratorsList = [];
       
-      // Add project owner first (always add owner even if profile doesn't exist)
+      // Add project owner first (always add owner even if user doesn't exist)
       const ownerData = {
         user_id: project.owner_id,
-        user_name: ownerProfile?.full_name || ownerProfile?.email || ownerAuth?.user?.email || 'Owner',
-        email: ownerProfile?.email || ownerAuth?.user?.email,
-        avatar_url: ownerProfile?.avatar_url || ownerAuth?.user?.user_metadata?.avatar_url,
+        user_name: ownerUser?.email || ownerAuth?.user?.email || 'Owner',
+        email: ownerUser?.email || ownerAuth?.user?.email,
+        avatar_url: ownerUser?.avatar_url || ownerAuth?.user?.user_metadata?.avatar_url || ownerAuth?.user?.user_metadata?.picture || null,
         permissions: 'owner',
         is_owner: true,
         joined_at: project.created_at,
@@ -313,56 +330,65 @@ class CollaborationManager {
       console.log('[CollaborationManager] Owner data:', ownerData);
       collaboratorsList.push(ownerData);
       
-      // Get collaborator access records if collaboration exists
-      if (collaboration) {
-        const { data: collaborators, error } = await this.supabase
-          .from('collaborator_access')
-          .select('*')
-          .eq('collaboration_id', collaboration.id)
-          .order('joined_at', { ascending: false });
-        
-        if (error) {
-          throw new Error(`Failed to get collaborators: ${error.message}`);
-        }
-        
-        // Add collaborators (excluding owner if they're in the list)
-        if (collaborators) {
-          for (const c of collaborators) {
-            if (c.user_id !== project.owner_id) {
-              // Get collaborator's profile
-              const { data: collabProfile } = await this.supabase
-                .from('profiles')
-                .select('avatar_url')
-                .eq('id', c.user_id)
-                .single();
-              
-              // Get user's auth metadata for avatar
-              const { data: userAuth } = await this.supabase.auth.admin.getUserById(c.user_id);
-              
-              const collabData = {
-                ...c,
-                avatar_url: collabProfile?.avatar_url || userAuth?.user?.user_metadata?.avatar_url,
-                is_owner: false,
-                joinedAt: new Date(c.joined_at),
-                lastActive: new Date(c.last_active)
-              };
-              console.log('[CollaborationManager] Collaborator ID:', c.user_id);
-              console.log('[CollaborationManager] Collaborator auth metadata:', userAuth?.user?.user_metadata);
-              console.log('[CollaborationManager] Collaborator data:', collabData);
-              
-              // Check if requesting user is the owner or the user themselves
-              const isOwnerRequesting = requestingUserId === project.owner_id;
-              const isUserThemselves = requestingUserId === c.user_id;
-              
-              // Only add collaborator if:
-              // 1. Requesting user is the owner (sees all), OR
-              // 2. Requesting user is the collaborator themselves (sees themselves even if hidden), OR
-              // 3. Collaborator is visible (is_visible = true)
-              if (isOwnerRequesting || isUserThemselves || c.is_visible !== false) {
-                collaboratorsList.push(collabData);
-              } else {
-                console.log('[CollaborationManager] 🙈 Hiding collaborator from other users:', c.user_name);
+      // Get collaborators (users who have joined via share token)
+      const { data: collaborators, error } = await this.supabase
+        .from('collaborations')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw new Error(`Failed to get collaborators: ${error.message}`);
+      }
+      
+      // Add collaborators (excluding owner if they're in the list)
+      if (collaborators) {
+        for (const c of collaborators) {
+          if (c.user_id !== project.owner_id) {
+            // Get collaborator's user data
+            const { data: collabUser } = await this.supabase
+              .from('users')
+              .select('email, avatar_url')
+              .eq('id', c.user_id)
+              .single();
+            
+            // Get user's auth metadata for avatar (only if using Supabase cloud)
+            let userAuth = null;
+            if (this.supabase.auth && this.supabase.auth.admin) {
+              try {
+                const result = await this.supabase.auth.admin.getUserById(c.user_id);
+                userAuth = result.data;
+              } catch (authError) {
+                console.log('[CollaborationManager] ⚠️ Could not fetch collaborator auth:', authError.message);
               }
+            }
+            
+            const collabData = {
+              user_id: c.user_id,
+              user_name: collabUser?.email || 'User',
+              email: collabUser?.email,
+              avatar_url: collabUser?.avatar_url || userAuth?.user?.user_metadata?.avatar_url || userAuth?.user?.user_metadata?.picture || null,
+              permissions: c.role || 'viewer',
+              is_owner: false,
+              joined_at: c.created_at,
+              last_active: c.created_at
+            };
+            console.log('[CollaborationManager] Collaborator ID:', c.user_id);
+            console.log('[CollaborationManager] Collaborator auth metadata:', userAuth?.user?.user_metadata);
+            console.log('[CollaborationManager] Collaborator data:', collabData);
+            
+            // Check if requesting user is the owner or the user themselves
+            const isOwnerRequesting = requestingUserId === project.owner_id;
+            const isUserThemselves = requestingUserId === c.user_id;
+            
+            // Only add collaborator if:
+            // 1. Requesting user is the owner (sees all), OR
+            // 2. Requesting user is the collaborator themselves (sees themselves), OR
+            // 3. Collaborator is visible (is_visible = true)
+            if (isOwnerRequesting || isUserThemselves || c.is_visible !== false) {
+              collaboratorsList.push(collabData);
+            } else {
+              console.log('[CollaborationManager] 🙈 Hiding collaborator from other users:', collabData.user_name);
             }
           }
         }
@@ -388,26 +414,15 @@ class CollaborationManager {
     
     try {
       // Validate permissions
-      if (!['read', 'write'].includes(permissions)) {
-        throw new Error('Invalid permissions. Must be "read" or "write"');
+      if (!['viewer', 'editor'].includes(permissions)) {
+        throw new Error('Invalid permissions. Must be "viewer" or "editor"');
       }
       
-      // Find collaboration
-      const { data: collaboration } = await this.supabase
-        .from('collaborations')
-        .select('*')
-        .eq('project_id', projectId)
-        .single();
-      
-      if (!collaboration) {
-        throw new Error('Collaboration not found');
-      }
-      
-      // Update permissions
+      // Update role in collaborations table
       const { error } = await this.supabase
-        .from('collaborator_access')
-        .update({ permissions })
-        .eq('collaboration_id', collaboration.id)
+        .from('collaborations')
+        .update({ role: permissions })
+        .eq('project_id', projectId)
         .eq('user_id', userId);
       
       if (error) {
@@ -446,33 +461,22 @@ class CollaborationManager {
    */
   async getUserCollaborations(userId) {
     try {
-      // Get collaborator access records for user
-      const { data: accessRecords, error: accessError } = await this.supabase
-        .from('collaborator_access')
-        .select('collaboration_id, permissions, joined_at, last_active')
+      // Get collaborations where user is a collaborator
+      const { data: collabs, error: collabError } = await this.supabase
+        .from('collaborations')
+        .select('project_id, role, created_at')
         .eq('user_id', userId);
       
-      if (accessError) {
-        throw new Error(`Failed to get collaborations: ${accessError.message}`);
+      if (collabError) {
+        throw new Error(`Failed to get collaborations: ${collabError.message}`);
       }
       
-      if (!accessRecords || accessRecords.length === 0) {
+      if (!collabs || collabs.length === 0) {
         return [];
       }
       
-      // Get collaboration details
-      const collaborationIds = accessRecords.map(r => r.collaboration_id);
-      const { data: collaborations, error: collabError } = await this.supabase
-        .from('collaborations')
-        .select('*')
-        .in('id', collaborationIds);
-      
-      if (collabError) {
-        throw new Error(`Failed to get collaboration details: ${collabError.message}`);
-      }
-      
       // Get project details
-      const projectIds = collaborations.map(c => c.project_id);
+      const projectIds = collabs.map(c => c.project_id);
       const { data: projects, error: projectError } = await this.supabase
         .from('projects')
         .select('*')
@@ -482,52 +486,51 @@ class CollaborationManager {
         throw new Error(`Failed to get project details: ${projectError.message}`);
       }
       
-      // Get owner details using admin API
-      const ownerIds = [...new Set(projects.map(p => p.owner_id))]; // Unique owner IDs
+      // Get project shares for these projects
+      const { data: projectShares } = await this.supabase
+        .from('project_shares')
+        .select('*')
+        .in('project_id', projectIds);
+      
+      // Get owner details
+      const ownerIds = [...new Set(projects.map(p => p.owner_id))];
       const ownerMap = new Map();
       
       for (const ownerId of ownerIds) {
-        try {
-          const { data: userData, error: ownerError } = await this.supabase.auth.admin.getUserById(ownerId);
-          
-          if (!ownerError && userData?.user) {
-            const user = userData.user;
-            const ownerName = user.user_metadata?.full_name || 
-                             user.user_metadata?.name ||
-                             user.email?.split('@')[0] || 
-                             'Unknown Owner';
-            ownerMap.set(ownerId, ownerName);
-          } else {
-            console.warn(`[CollaborationManager] Failed to get owner ${ownerId}:`, ownerError?.message);
-            ownerMap.set(ownerId, 'Unknown Owner');
-          }
-        } catch (error) {
-          console.warn(`[CollaborationManager] Error fetching owner ${ownerId}:`, error.message);
+        const { data: ownerUser } = await this.supabase
+          .from('users')
+          .select('email')
+          .eq('id', ownerId)
+          .single();
+        
+        if (ownerUser) {
+          ownerMap.set(ownerId, ownerUser.email || 'Unknown Owner');
+        } else {
           ownerMap.set(ownerId, 'Unknown Owner');
         }
       }
       
       // Combine data
-      return collaborations.map(collab => {
-        const access = accessRecords.find(a => a.collaboration_id === collab.id);
+      return collabs.map(collab => {
         const project = projects.find(p => p.id === collab.project_id);
+        const projectShare = projectShares?.find(ps => ps.project_id === collab.project_id);
         const ownerName = project ? ownerMap.get(project.owner_id) || 'Unknown Owner' : 'Unknown Owner';
         
         return {
-          collaboration: {
-            ...collab,
-            createdAt: new Date(collab.created_at),
-            lastModified: new Date(collab.last_modified),
+          projectShare: projectShare ? {
+            ...projectShare,
+            createdAt: new Date(projectShare.created_at),
+            lastModified: new Date(projectShare.last_modified),
             ownerName: ownerName
-          },
+          } : null,
           project: project ? {
             ...project,
             createdAt: new Date(project.created_at),
             lastActive: new Date(project.last_active),
             ownerName: ownerName
           } : null,
-          myPermissions: access?.permissions || 'read',
-          joinedAt: access ? new Date(access.joined_at) : null,
+          myPermissions: collab.role || 'viewer',
+          joinedAt: new Date(collab.created_at),
           ownerName: ownerName
         };
       });
@@ -544,7 +547,7 @@ class CollaborationManager {
    * @returns {Promise<Object>} Collaboration data
    */
   async getCollaborationByToken(shareToken) {
-    console.log(`[CollaborationManager] Getting collaboration by token ${shareToken}`);
+    console.log(`[CollaborationManager] Getting project share by token ${shareToken}`);
     
     try {
       // Validate share token format (UUID)
@@ -552,30 +555,31 @@ class CollaborationManager {
         throw new Error('Invalid Project ID format');
       }
       
-      // Find collaboration by share token
-      const { data: collaboration, error: collabError } = await this.supabase
-        .from('collaborations')
+      // Find project share by share token
+      const { data: projectShare, error: shareError } = await this.supabase
+        .from('project_shares')
         .select('*')
         .eq('share_token', shareToken)
         .single();
       
-      if (collabError || !collaboration) {
-        throw new Error('Collaboration not found');
+      if (shareError || !projectShare) {
+        throw new Error('Project share not found');
       }
       
-      // Check if collaboration has expired
-      if (collaboration.expires_at && new Date(collaboration.expires_at) < new Date()) {
+      // Check if share has expired
+      if (projectShare.expires_at && new Date(projectShare.expires_at) < new Date()) {
         throw new Error('This collaboration link has expired');
       }
       
       return {
-        ...collaboration,
-        createdAt: new Date(collaboration.created_at),
-        lastModified: new Date(collaboration.last_modified)
+        ...projectShare,
+        shareToken: projectShare.share_token,
+        createdAt: new Date(projectShare.created_at),
+        lastModified: new Date(projectShare.last_modified)
       };
       
     } catch (error) {
-      console.error('[CollaborationManager] ❌ Failed to get collaboration:', error.message);
+      console.error('[CollaborationManager] ❌ Failed to get project share:', error.message);
       throw error;
     }
   }
@@ -586,7 +590,7 @@ class CollaborationManager {
    * @returns {Promise<Array>} List of sessions
    */
   async getCollaborationSessions(shareToken) {
-    console.log(`[CollaborationManager] Getting sessions for collaboration ${shareToken}`);
+    console.log(`[CollaborationManager] Getting sessions for project share ${shareToken}`);
     
     try {
       // Validate share token format (UUID)
@@ -594,19 +598,19 @@ class CollaborationManager {
         throw new Error('Invalid Project ID format');
       }
       
-      // Find collaboration by share token
-      const { data: collaboration, error: collabError } = await this.supabase
-        .from('collaborations')
+      // Find project share by share token
+      const { data: projectShare, error: shareError } = await this.supabase
+        .from('project_shares')
         .select('*')
         .eq('share_token', shareToken)
         .single();
       
-      if (collabError || !collaboration) {
-        throw new Error('Collaboration not found');
+      if (shareError || !projectShare) {
+        throw new Error('Project share not found');
       }
       
-      // Check if collaboration has expired
-      if (collaboration.expires_at && new Date(collaboration.expires_at) < new Date()) {
+      // Check if share has expired
+      if (projectShare.expires_at && new Date(projectShare.expires_at) < new Date()) {
         throw new Error('This collaboration link has expired');
       }
       
@@ -614,7 +618,7 @@ class CollaborationManager {
       const { data: sessions, error: sessionsError } = await this.supabase
         .from('sessions')
         .select('*')
-        .eq('project_id', collaboration.project_id)
+        .eq('project_id', projectShare.project_id)
         .order('last_active', { ascending: false });
       
       if (sessionsError) {
@@ -630,7 +634,7 @@ class CollaborationManager {
       }));
       
     } catch (error) {
-      console.error('[CollaborationManager] ❌ Failed to get collaboration sessions:', error.message);
+      console.error('[CollaborationManager] ❌ Failed to get project share sessions:', error.message);
       throw error;
     }
   }

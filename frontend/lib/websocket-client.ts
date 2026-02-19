@@ -285,7 +285,12 @@ let wsClient: WebSocketClient | null = null;
 
 export function getWebSocketClient(): WebSocketClient {
   if (!wsClient) {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    // Auto-detect protocol based on current page protocol
+    let wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    if (!wsUrl) {
+      const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//localhost:3001`;
+    }
     wsClient = new WebSocketClient(wsUrl);
   }
   return wsClient;

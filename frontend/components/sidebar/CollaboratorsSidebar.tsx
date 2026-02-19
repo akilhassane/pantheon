@@ -303,6 +303,8 @@ export function CollaboratorsSidebar({
                         src={collaborator.avatarUrl}
                         alt={collaborator.userName}
                         className="w-10 h-10 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
                         onError={(e) => {
                           // Fallback to initials if image fails to load
                           console.error('❌ Failed to load avatar for', collaborator.userName, 'URL:', collaborator.avatarUrl, 'Last 10:', collaborator.avatarUrl?.slice(-10))

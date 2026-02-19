@@ -104,9 +104,6 @@ export function AdvancedSettings() {
             description="Enable developer tools and debugging features"
             value={settings.advanced.debugMode}
             onChange={(value) => {
-              if (value && !confirm('Enabling debug mode may impact performance. Continue?')) {
-                return
-              }
               updateSetting('advanced.debugMode', value)
             }}
           />

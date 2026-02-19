@@ -185,6 +185,21 @@ class WindowsMCPClient {
   }
 
   /**
+   * Get tools formatted for Gemini API
+   */
+  getToolsForGemini() {
+    return this.tools.map(tool => ({
+      name: `windows_${tool.name}`,
+      description: tool.description || `Execute ${tool.name}`,
+      parameters: {
+        type: 'object',
+        properties: tool.inputSchema?.properties || {},
+        required: tool.inputSchema?.required || []
+      }
+    }));
+  }
+
+  /**
    * Disconnect (cleanup)
    */
   disconnect() {

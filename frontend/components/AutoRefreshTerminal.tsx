@@ -26,22 +26,15 @@ export default function AutoRefreshTerminal({
   const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const connectionCheckRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Determine final terminal URL
-  // For remote access (tunnel URL), use the fixed HTML from backend with wsTarget parameter
-  // For local access, use localhost directly
-  const finalTerminalUrl = terminalUrl 
-    ? (() => {
-        // Extract hostname from tunnel URL for WebSocket target
-        try {
-          const tunnelHostname = new URL(terminalUrl).hostname
-          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://pantheon-backend-production.up.railway.app'
-          return `${backendUrl}/api/proxy/${projectId}/terminal-fixed.html?wsTarget=${tunnelHostname}`
-        } catch (e) {
-          console.error('Failed to parse tunnel URL:', e)
-          return terminalUrl
-        }
-      })()
-    : `http://localhost:${terminalPort}/`
+  // Determine final terminal URL - use tunnel URL if available, otherwise localhost
+  // Auto-detect protocol for localhost URLs
+  const finalTerminalUrl = terminalUrl || (() => {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      // If page is HTTPS, try to use HTTPS for iframe too (may fail for localhost)
+      return `https://localhost:${terminalPort}/`
+    }
+    return `http://localhost:${terminalPort}/`
+  })()
 
   // Note: We removed the periodic connection monitoring because:
   // 1. CORS prevents us from reading iframe content anyway
@@ -100,79 +93,32 @@ export default function AutoRefreshTerminal({
   const handleLoad = () => {
     console.log(`🔍 Iframe onLoad fired (refreshKey: ${refreshKey}, hasLoadedSuccessfully: ${hasLoadedSuccessfully})`)
     
-    // Check if iframe actually loaded content
-    try {
-      const iframe = iframeRef.current
-      if (!iframe) {
-        console.log('⚠️ No iframe ref available')
-        return
-      }
+    // Simply mark as loaded when onLoad fires
+    // We can't reliably check iframe content due to CORS restrictions
+    console.log('========================================')
+    console.log('✅ TERMINAL IFRAME LOADED SUCCESSFULLY')
+    console.log('   Project Name:', projectName)
+    console.log('   Project ID:', projectId)
+    console.log('   Container ID:', containerId)
+    console.log('   Terminal Port:', terminalPort)
+    console.log('   Operating System:', operatingSystem || 'unknown')
+    console.log('   Terminal URL from prop:', terminalUrl || 'not set')
+    console.log('   Final URL:', finalTerminalUrl)
+    console.log('   Setting hasLoadedSuccessfully to TRUE')
+    console.log('========================================')
 
-      // Small delay to let iframe content render
-      setTimeout(() => {
-        try {
-          // Try to access iframe content to verify it's not showing "Connection Closed!"
-          let hasConnectionError = false
-          
-          try {
-            const iframeDoc = iframe.contentWindow?.document
-            const bodyText = iframeDoc?.body?.innerText || ''
-            
-            console.log(`📄 Iframe body text length: ${bodyText.length}`)
-            
-            // If we see "Connection Closed!", don't mark as successfully loaded
-            if (bodyText.includes('Connection Closed!')) {
-              console.log('⚠️ Iframe loaded but shows "Connection Closed!" - continuing refresh...')
-              hasConnectionError = true
-            } else {
-              console.log('✅ Iframe content looks good (no "Connection Closed!" found)')
-            }
-          } catch (e) {
-            // CORS error - can't check content
-            // Assume it's fine if we can't check (iframe loaded successfully)
-            console.log('ℹ️ Cannot access iframe content (CORS) - assuming terminal is ready')
-          }
+    setHasLoadedSuccessfully(true)
 
-          // If no connection error detected, mark as successfully loaded
-          if (!hasConnectionError) {
-            console.log('========================================')
-            console.log('✅ TERMINAL IFRAME LOADED SUCCESSFULLY')
-            console.log('   Project Name:', projectName)
-            console.log('   Project ID:', projectId)
-            console.log('   Container ID:', containerId)
-            console.log('   Terminal Port:', terminalPort)
-            console.log('   Operating System:', operatingSystem || 'unknown')
-            console.log('   Terminal URL from prop:', terminalUrl || 'not set')
-            console.log('   Final URL:', finalTerminalUrl)
-            console.log('   Data is being received - stopping auto-refresh')
-            console.log('   Setting hasLoadedSuccessfully to TRUE')
-            console.log('========================================')
-
-            setHasLoadedSuccessfully(true)
-
-            // Clear the interval and timeout
-            if (intervalRef.current) {
-              console.log('🧹 Clearing refresh interval from handleLoad')
-              clearInterval(intervalRef.current)
-              intervalRef.current = null
-            }
-            if (loadTimeoutRef.current) {
-              console.log('🧹 Clearing load timeout from handleLoad')
-              clearTimeout(loadTimeoutRef.current)
-              loadTimeoutRef.current = null
-            }
-          } else {
-            console.log('⚠️ Connection error detected, NOT setting hasLoadedSuccessfully')
-          }
-        } catch (error) {
-          console.error('Error in delayed verification:', error)
-          // On error, assume it's loaded to avoid infinite refresh
-          console.log('⚠️ Error occurred, setting hasLoadedSuccessfully to TRUE to stop refresh')
-          setHasLoadedSuccessfully(true)
-        }
-      }, 500) // Wait 500ms for content to render
-    } catch (error) {
-      console.error('Error checking iframe load status:', error)
+    // Clear the interval and timeout
+    if (intervalRef.current) {
+      console.log('🧹 Clearing refresh interval from handleLoad')
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    if (loadTimeoutRef.current) {
+      console.log('🧹 Clearing load timeout from handleLoad')
+      clearTimeout(loadTimeoutRef.current)
+      loadTimeoutRef.current = null
     }
   }
 
@@ -186,6 +132,16 @@ export default function AutoRefreshTerminal({
     console.error('   Error:', e)
     console.error('   Will retry in 2 seconds...')
   }
+
+  useEffect(() => {
+    console.log('📺 Terminal iframe rendered:', {
+      src: finalTerminalUrl,
+      width: iframeRef.current?.offsetWidth,
+      height: iframeRef.current?.offsetHeight,
+      display: iframeRef.current?.style.display,
+      visibility: iframeRef.current?.style.visibility
+    })
+  }, [finalTerminalUrl, refreshKey])
 
   return (
     <iframe
@@ -206,7 +162,6 @@ export default function AutoRefreshTerminal({
         border: 'none'
       }}
       title={`Terminal (ttyd) - ${projectName}`}
-      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-pointer-lock allow-modals"
       allow="clipboard-read; clipboard-write; fullscreen"
     />
   )

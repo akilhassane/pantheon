@@ -21,6 +21,9 @@ interface UseCollaborationWebSocketProps {
   onCollaboratorRemoved?: (userId: string, userName: string) => void
   onCollaboratorVisibilityChanged?: (userId: string, userName: string, isVisible: boolean) => void
   onAllCollaboratorsVisibilityChanged?: (isVisible: boolean) => void
+  onCustomModesUpdated?: () => void
+  onModelsUpdated?: () => void
+  onSettingsUpdated?: () => void
 }
 
 export function useCollaborationWebSocket({
@@ -38,7 +41,10 @@ export function useCollaborationWebSocket({
   onCollaboratorLeft,
   onCollaboratorRemoved,
   onCollaboratorVisibilityChanged,
-  onAllCollaboratorsVisibilityChanged
+  onAllCollaboratorsVisibilityChanged,
+  onCustomModesUpdated,
+  onModelsUpdated,
+  onSettingsUpdated
 }: UseCollaborationWebSocketProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -50,9 +56,10 @@ export function useCollaborationWebSocket({
   const connect = useCallback(() => {
     if (!projectId || !userId) return
 
-    // Hardcoded Railway backend URL for now
-    // TODO: Move to environment variable once Vercel env vars are properly configured
-    const backendHttpUrl = 'https://pantheon-backend-production.up.railway.app'
+    // Use NEXT_PUBLIC_BACKEND_URL if available, otherwise fallback to localhost
+    const backendHttpUrl = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`)
+      : 'http://backend:3002'
     
     // Convert HTTP URL to WebSocket URL
     const backendUrl = backendHttpUrl.replace(/^http/, 'ws')
@@ -149,6 +156,24 @@ export function useCollaborationWebSocket({
               onAllCollaboratorsVisibilityChanged?.(message.isVisible)
               // Request updated members list
               sendMessage({ type: 'refresh-collaborators' })
+              break
+
+            case 'custom-modes-updated':
+              // Custom modes were updated - reload them
+              console.log('📥 Custom modes updated')
+              onCustomModesUpdated?.()
+              break
+
+            case 'models-updated':
+              // Models were updated - reload them
+              console.log('📥 Models updated')
+              onModelsUpdated?.()
+              break
+
+            case 'settings-updated':
+              // Settings were updated - reload them
+              console.log('📥 Settings updated')
+              onSettingsUpdated?.()
               break
 
             default:

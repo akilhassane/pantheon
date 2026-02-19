@@ -89,28 +89,9 @@
     }
     
     function connectWebSocket(sessionId) {
-      // Get WebSocket URL from query parameter or auto-detect
-      const urlParams = new URLSearchParams(window.location.search);
-      const wsTarget = urlParams.get('wsTarget'); // e.g., "indication-yarn-head-dollar.trycloudflare.com"
-      
-      let wsUrl;
-      if (wsTarget) {
-        // Use provided WebSocket target (Cloudflare tunnel)
-        wsUrl = `wss://${wsTarget}?sessionId=${sessionId}`;
-        console.log('🔌 Using provided WebSocket target:', wsTarget);
-      } else {
-        // Auto-detect from current location
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const hostname = window.location.hostname;
-        const port = window.location.port;
-        
-        if (protocol === 'wss:') {
-          wsUrl = `${protocol}//${hostname}?sessionId=${sessionId}`;
-        } else {
-          wsUrl = `${protocol}//${hostname}:${port || 9090}?sessionId=${sessionId}`;
-        }
-        console.log('🔌 Auto-detected WebSocket URL');
-      }
+      // Connect WebSocket to Cloudflare tunnel
+      const tunnelUrl = 'wss://indication-yarn-head-dollar.trycloudflare.com';
+      const wsUrl = `${tunnelUrl}?sessionId=${sessionId}`;
       
       console.log('🔌 Connecting to WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);

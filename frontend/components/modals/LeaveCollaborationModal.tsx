@@ -36,7 +36,7 @@ export function LeaveCollaborationModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]" onClick={(e) => e.target === e.currentTarget && handleClose()}>
-      <div className="bg-[#1a1b26] border border-gray-700 rounded-lg p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="rounded-lg p-6 w-full max-w-md shadow-2xl" style={{ backgroundColor: '#0A0A0A', borderColor: '#27272A', borderWidth: '1px' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -56,9 +56,9 @@ export function LeaveCollaborationModal({
             <span className="font-semibold text-white">"{projectName}"</span>?
           </p>
 
-          <div className="p-3 bg-orange-900/20 border border-orange-800 rounded-md">
-            <p className="text-xs text-orange-300">
-              <strong>Warning:</strong> You will lose access to this project and all its sessions.
+          <div className="p-3 bg-gray-800 border border-gray-700 rounded-md">
+            <p className="text-xs text-gray-400">
+              <strong className="text-white">Warning:</strong> You will lose access to this project and all its sessions.
               You'll need to be re-invited to access it again.
             </p>
           </div>
@@ -74,7 +74,7 @@ export function LeaveCollaborationModal({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && isValid && handleConfirm()}
               placeholder="leave"
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
               autoFocus
               autoComplete="off"
               spellCheck="false"

@@ -1,12 +1,9 @@
 /**
- * Mode-Specific System Prompts - V3 CLARITY OPTIMIZED
- * Restructured for maximum AI comprehension and zero ambiguity
+ * Mode-Specific System Prompts - Simplified
  */
 
 class ModeSystemPrompts {
-  constructor() {
-    // Generate prompts dynamically with OS context
-  }
+  constructor() {}
 
   getMode(mode) {
     const validModes = ['terminal', 'desktop', 'windows'];
@@ -14,7 +11,6 @@ class ModeSystemPrompts {
       console.warn(`⚠️  Invalid mode "${mode}", defaulting to "terminal"`);
       return 'terminal';
     }
-    // Map 'windows' to 'desktop' mode
     if (mode === 'windows') {
       return 'desktop';
     }
@@ -23,739 +19,245 @@ class ModeSystemPrompts {
 
   getOS(operatingSystem) {
     const validOS = [
-      'kali-linux',
-      'ubuntu-22',
-      'ubuntu-24',
-      'debian-11',
-      'debian-12',
-      'arch-linux',
-      'fedora-39',
-      'centos-9',
-      'parrot-os',
-      'windows-10',
-      'windows-11',
-      'macos-sonoma',
-      'macos-ventura'
+      'kali-linux', 'ubuntu-22', 'ubuntu-24', 'debian-11', 'debian-12',
+      'arch-linux', 'fedora-39', 'centos-9', 'parrot-os',
+      'windows-10', 'windows-11', 'macos-sonoma', 'macos-ventura'
     ];
 
     if (!validOS.includes(operatingSystem)) {
-      console.warn(
-        `⚠️  Unknown OS "${operatingSystem}", defaulting to "kali-linux"`
-      );
+      console.warn(`⚠️  Unknown OS "${operatingSystem}", defaulting to "kali-linux"`);
       return 'kali-linux';
     }
-
     return operatingSystem;
-  }
-
-  getReasoningLevel(modelName) {
-    const modelLower = (modelName || '').toLowerCase();
-    
-    // MEDIUM REASONING: Check these FIRST before checking high reasoning
-    // (to avoid false matches like gpt-4o-mini matching gpt-4o)
-    const mediumReasoning = [
-      'gpt-4o-mini',
-      'gpt-3.5-turbo',
-      'claude-3.5-haiku',
-      'claude-3-haiku',
-      'claude-haiku',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash',
-      'mistral-large',
-      'mistral-medium',
-      'llama-3.1-70b',
-      'llama-3.3-70b',
-      'qwen-2.5-32b',
-      'deepseek-r1'
-    ];
-    
-    // Check medium first to avoid substring matches
-    if (mediumReasoning.some(m => modelLower.includes(m))) {
-      return 'medium';
-    }
-    
-    // HIGH REASONING: Advanced models with strong instruction following
-    const highReasoning = [
-      'gpt-4o',
-      'gpt-4-turbo',
-      'gpt-4',
-      'claude-3.5-sonnet',
-      'claude-3-opus',
-      'claude-opus',
-      'gemini-2.0-flash-exp',
-      'gemini-exp-1206',
-      'o1-preview',
-      'o1-mini',
-      'deepseek-chat',
-      'qwen-2.5-72b',
-      'qwen-qwq-32b'
-    ];
-    
-    if (highReasoning.some(m => modelLower.includes(m))) {
-      return 'high';
-    }
-    
-    // LOW REASONING: Smaller models that need very simple instructions
-    const lowReasoning = [
-      'gpt-3.5',
-      'claude-instant',
-      'gemini-1.5-flash-8b',
-      'mistral-small',
-      'mistral-7b',
-      'llama-3.1-8b',
-      'llama-3.2-3b',
-      'phi-3',
-      'qwen-2.5-7b'
-    ];
-    
-    if (lowReasoning.some(m => modelLower.includes(m))) {
-      return 'low';
-    }
-    
-    return 'medium'; // default
   }
 
   getPromptForMode(mode, operatingSystem = 'kali-linux', modelName = null) {
     const validatedMode = this.getMode(mode);
     const validatedOS = this.getOS(operatingSystem);
 
-    console.log(
-      `📋 Generating system prompt for mode="${validatedMode}" OS="${validatedOS}" model="${modelName || 'default'}"`
-    );
+    console.log(`📋 Generating system prompt for mode="${validatedMode}" OS="${validatedOS}"`);
 
-    // Windows uses different prompts
     if (validatedOS === 'windows-11' || validatedOS === 'windows-10') {
       if (validatedMode === 'desktop') {
-        return this.getWindowsDesktopPrompt(modelName);
+        return this.getWindowsDesktopPrompt();
       } else {
         return this.getWindowsTerminalPrompt();
       }
     }
 
-    // Linux/Unix systems use standard prompts
-    const osContext = this.getOSContext(validatedOS);
-    const basePrompt =
-      validatedMode === 'desktop'
-        ? this.getDesktopPrompt(modelName)
-        : this.getTerminalPrompt(modelName);
-
-    return `${osContext}\n\n${basePrompt}`;
+    return validatedMode === 'desktop' 
+      ? this.getDesktopPrompt() 
+      : this.getTerminalPrompt();
   }
 
-  getOSContext(operatingSystem) {
-    const osInfo = this.getOSInfo(operatingSystem);
+  getTerminalPrompt() {
+    return `Execute bash commands. Tools:
+- write_command(cmd) - Run command
+- get_session_output() - Read output
+- write_text(text) - Type without Enter
+- send_key(key) - Press keys
 
-    return `Operating System: ${osInfo.name}
-Type: ${osInfo.type}
-Package Manager: ${osInfo.packageManager}
-Shell: ${osInfo.shell}
-Desktop: ${osInfo.desktop}
-
-Available Tools: ${osInfo.tools}`;
+Workflow: Explain → Execute → Repeat → Done`;
   }
 
-  getOSInfo(operatingSystem) {
-    const osMap = {
-      'kali-linux': {
-        name: 'Kali Linux',
-        type: 'Debian-based (Security/Pentesting)',
-        packageManager: 'apt',
-        shell: 'bash',
-        desktop: 'XFCE',
-        specialNotes:
-          'Pre-installed pentesting tools. Default user: root/pentester.',
-        tools:
-          'write_command, get_session_output, write_text, send_key, see_screen, click, move_mouse, type_text, press_key',
-        commonCommands: 'apt update, apt install, nmap, msfconsole, wireshark'
-      },
-      'ubuntu-24': {
-        name: 'Ubuntu 24.04 LTS',
-        type: 'Debian-based (General Purpose)',
-        packageManager: 'apt, snap',
-        shell: 'bash',
-        desktop: 'GNOME',
-        specialNotes: 'Latest LTS release with modern packages.',
-        tools:
-          'write_command, get_session_output, write_text, send_key, see_screen, click, move_mouse, type_text, press_key',
-        commonCommands: 'apt update, apt install, snap install, systemctl'
-      },
-      'windows-11': {
-        name: 'Windows 11',
-        type: 'Windows NT (Desktop/Server)',
-        packageManager: 'winget, chocolatey',
-        shell: 'PowerShell',
-        desktop: 'Windows GUI',
-        specialNotes:
-          'Modern Windows with GUI and PowerShell. Full desktop control available.',
-        tools:
-          'windows_take_screenshot, windows_execute_powershell, windows_move_mouse, windows_click_mouse, windows_type_text, windows_press_key',
-        commonCommands:
-          'Get-Process, Get-Service, Get-ChildItem, Set-Location, Start-Process'
-      }
-    };
+  getDesktopPrompt() {
+    return `Control Linux desktop. Tools:
+- see_screen() - Screenshot
+- click(x, y) - Click
+- type_text(text) - Type
+- press_key(key) - Press
 
-    return osMap[operatingSystem] || osMap['kali-linux'];
-  }
-
-  getTerminalPrompt(modelName = null) {
-    const reasoningLevel = this.getReasoningLevel(modelName);
-    
-    if (reasoningLevel === 'high') {
-      return `# TERMINAL MODE - BASH COMMAND EXECUTION
-
-You can execute bash commands in a Linux terminal when needed.
-
-WHEN TO USE TOOLS:
-- User asks you to perform a task (create files, run commands, check system, etc.)
-- User requests information that requires terminal commands
-
-WHEN NOT TO USE TOOLS:
-- Simple greetings (hello, hi, how are you)
-- General questions or conversation
-- Requests for explanations or information you already know
-
-AVAILABLE TOOLS:
-- write_command: Execute bash command (auto-presses Enter)
-- get_session_output: Read terminal output
-- write_text: Type text without pressing Enter
-- send_key: Send special keys (return, tab, ctrl+c, etc.)
-
-EXAMPLE WORKFLOW:
-User: "Create a file called test.txt with 'hello' inside"
-
-Turn 1: "I'll create the file with the content using echo."
-[Call: write_command("echo 'hello' > test.txt")]
-
-Turn 2: "I'll verify the file was created by reading its contents."
-[Call: write_command("cat test.txt")]
-
-Turn 3: "File created successfully with content 'hello'. Task complete."
-[No tool call]
-
-RULES:
-- For simple conversation, just respond naturally without tools
-- For tasks, include text explanation before every tool call
-- Continue taking actions until task is 100% complete
-- Send final text-only response when done
-- Base each action on previous results`;
-    }
-    
-    if (reasoningLevel === 'low') {
-      return `Execute bash commands. Tools:
-- write_command: Run command
-- get_session_output: Read output
-- write_text: Type text
-- send_key: Press keys
-
-Steps:
-1. Say what you'll do
-2. Call tool
-3. Repeat until done
-4. Say "complete"
-
-Start now.`;
-    }
-    
-    // Medium reasoning (default)
-    return `# TERMINAL MODE - BASH COMMAND EXECUTION
-
-Execute bash commands when the user asks you to perform tasks.
-
-WHEN TO USE TOOLS:
-- User requests a task (create files, run commands, check system)
-- User needs terminal operations
-
-WHEN NOT TO USE TOOLS:
-- Simple greetings or conversation
-- General questions you can answer directly
-
-TOOLS:
-- write_command: Execute bash command
-- get_session_output: Read terminal output
-- write_text: Type without Enter
-- send_key: Send special keys
-
-WORKFLOW FOR TASKS:
-1. Explain what you're doing (text)
-2. Call the tool (function)
-3. Repeat until task complete
-4. Final message: text only
-
-Start by responding naturally to the user's message.`;
-  }
-
-  getDesktopPrompt(modelName = null) {
-    const reasoningLevel = this.getReasoningLevel(modelName);
-    
-    if (reasoningLevel === 'high') {
-      return `# DESKTOP MODE - GUI CONTROL
-
-You can control a Linux desktop GUI when needed.
-
-WHEN TO USE TOOLS:
-- User asks you to perform GUI tasks (open apps, click buttons, etc.)
-- User requests screenshots or visual information
-
-WHEN NOT TO USE TOOLS:
-- Simple greetings (hello, hi, how are you)
-- General questions or conversation
-- Requests for explanations or information you already know
-
-AVAILABLE TOOLS:
-- see_screen: Capture screenshot (returns image + OCR text + UI elements)
-- click: Click at coordinates {x, y}
-- move_mouse: Move cursor to {x, y}
-- type_text: Type text string
-- press_key: Press keyboard keys
-- scroll: Scroll {direction, amount}
-
-EXAMPLE WORKFLOW:
-User: "Open Firefox"
-
-Turn 1: "I'll take a screenshot to see the current desktop state."
-[Call: see_screen()]
-
-Turn 2: "I can see the desktop with Firefox icon at coordinates (100, 150). I'll click on it."
-[Call: click({x: 100, y: 150})]
-
-Turn 3: "I'll take a screenshot to verify Firefox opened."
-[Call: see_screen()]
-
-Turn 4: "Firefox is now open and displaying the home page. Task complete."
-[No tool call]
-
-RULES:
-- For simple conversation, just respond naturally without tools
-- For GUI tasks, take screenshot FIRST to see what's on screen
-- Describe what you see after each screenshot
-- Base actions on screenshot analysis
-- Include text explanation before every tool call
-- Continue until task is 100% complete
-- Final response: text only, no tools`;
-    }
-    
-    if (reasoningLevel === 'low') {
-      return `Control Linux desktop. Tools:
-- see_screen: Screenshot
-- click: Click {x, y}
-- type_text: Type text
-- press_key: Press keys
-
-Steps:
-1. Screenshot first
-2. Say what you see
-3. Do action
-4. Repeat
-5. Say "complete"
-
-Start: Call see_screen()`;
-    }
-    
-    // Medium reasoning (default)
-    return `# DESKTOP MODE - GUI CONTROL
-
-Control a Linux desktop GUI when the user asks you to perform tasks.
-
-WHEN TO USE TOOLS:
-- User requests GUI tasks (open apps, click buttons)
-- User needs screenshots or visual information
-
-WHEN NOT TO USE TOOLS:
-- Simple greetings or conversation
-- General questions you can answer directly
-
-TOOLS:
-- see_screen: Capture screenshot
-- click: Click at {x, y}
-- move_mouse: Move to {x, y}
-- type_text: Type text
-- press_key: Press keys
-- scroll: Scroll content
-
-WORKFLOW FOR TASKS:
-1. Call see_screen() first to see desktop
-2. Describe what you see
-3. Call the next tool to take action
-4. Repeat until task complete
-5. Final message: text only
-
-Start by responding naturally to the user's message.`;
+Workflow: Screenshot → Analyze → Act → Done`;
   }
 
   getWindowsTerminalPrompt() {
-    return `# WINDOWS TERMINAL MODE - POWERSHELL EXECUTION
+    return `Execute PowerShell commands. Tools:
+- windows_execute_powershell(cmd) - Run command
+- windows_type_text(text) - Type
+- windows_press_key(key) - Press
 
-## YOUR ROLE
-You execute PowerShell commands in Windows. You must take action on every turn until the task is complete.
-
-## RESPONSE STRUCTURE (MANDATORY)
-
-### DURING TASK EXECUTION:
-Each response MUST contain EXACTLY TWO PARTS in this order:
-1. TEXT: Brief explanation of your current action (1-2 sentences)
-2. TOOL CALL: The tool that performs the action
-
-### AFTER RECEIVING TOOL RESULTS:
-You MUST provide a comprehensive analysis (THIS IS CRITICAL):
-1. TEXT: Detailed explanation of what you found (3-5 sentences minimum):
-   - What the tool result shows
-   - What it means in context of the user's request
-   - What you'll do next (if continuing) OR what was accomplished (if done)
-2. NEXT ACTION: Either continue with next tool call OR confirm completion
-
-### AFTER TASK COMPLETION:
-Send ONE final response with:
-1. TEXT ONLY: Comprehensive summary of what was accomplished (2-3 sentences)
-2. NO TOOL CALLS
-
-## AVAILABLE TOOLS
-- windows_execute_powershell: Execute PowerShell command
-- windows_type_text: Type text in active window
-- windows_press_key: Press keyboard keys
-
-## EXECUTION PATTERN
-
-STEP 1 - Action Response:
-Text: "I'll check the current directory."
-Tool: windows_execute_powershell("Get-Location")
-
-STEP 2 - Analysis Response (after receiving tool output):
-Text: "The current directory is C:\Users\Admin, which is the user's home directory. This is the standard location for user files and settings. I can see we're in the right place to proceed. Now I'll list the files to see what's available in this directory."
-Tool: windows_execute_powershell("Get-ChildItem")
-
-STEP 3 - Completion Response:
-Text: "Task complete. The directory contains 5 files including Documents, Downloads, and Desktop folders. Everything looks normal for a user home directory with the standard Windows folder structure."
-Tool: NONE
-
-## CRITICAL RULES
-
-✅ DO THIS:
-- Include text explanation + tool call in EVERY action response
-- Use PowerShell syntax (Get-Location, not pwd)
-- Continue taking actions until task is 100% complete
-- Send final text-only response when done
-- Base each action on previous results
-
-❌ NEVER DO THIS:
-- Text without tool call (except final response)
-- Tool call without text explanation
-- Multi-step plans without immediate action
-- Continue calling tools after task completion
-- Stop before task is finished
-- Use bash commands (use PowerShell equivalents)
-
-## POWERSHELL COMMAND REFERENCE
-- Get-Location (current directory)
-- Get-ChildItem (list files)
-- Set-Location (change directory)
-- New-Item (create file/folder)
-- Remove-Item (delete)
-- Get-Content (read file)
-- Set-Content (write file)
-- Get-Process (list processes)
-- Start-Process (launch program)
-
-## EXAMPLES
-
-### CORRECT EXECUTION:
-User: "Create a file called test.txt with 'hello' inside"
-
-Response 1:
-"I'll create the file with the content."
-[Calls: windows_execute_powershell("Set-Content -Path test.txt -Value 'hello'")]
-
-Response 2:
-"I'll verify the file was created."
-[Calls: windows_execute_powershell("Get-Content test.txt")]
-
-Response 3:
-"File created successfully with content 'hello'."
-[No tool call]
-
-### INCORRECT EXECUTION:
-❌ "I'll create a file. Here's my plan: 1. Use Set-Content 2. Verify with Get-Content"
-   [No tool call - WRONG]
-
-❌ [Calls windows_execute_powershell("Get-Location")]
-   [No explanation - WRONG]
-
-❌ After seeing "hello" output: "I'll verify again."
-   [Calls windows_execute_powershell("Get-Content test.txt")]
-   [Task already done, unnecessary action - WRONG]
-
-## COMPLETION DETECTION
-Task is complete when:
-- User's request is fully satisfied
-- All verification steps confirm success
-- No further actions are needed
-
-Then send text-only response and STOP.`;
+Workflow: Explain → Execute → Done`;
   }
 
-  getWindowsDesktopPrompt(modelName = null) {
-    const reasoningLevel = this.getReasoningLevel(modelName);
-    console.log(`🧠 Model reasoning level: ${reasoningLevel} (${modelName})`);
-    
-    // HIGH REASONING PROMPT - Detailed with examples
-    if (reasoningLevel === 'high') {
-      return `You can control a Windows 11 desktop when needed. Available tools:
-- windows_take_screenshot() - Capture screen
-- windows_click_mouse({x, y}) - Click at coordinates
-- windows_type_text({text}) - Type text
-- windows_press_key({key}) - Press keys (return, win+up, tab, etc.)
+  getWindowsDesktopPrompt() {
+    return `Windows 11 Desktop Control
 
-WHEN TO USE TOOLS:
-- User asks you to perform GUI tasks (open apps, click buttons, etc.)
-- User requests screenshots or visual information
+🚨 CRITICAL: NO SCREENSHOT BEFORE ACTION! 🚨
+If you just took a screenshot and can see what you need:
+- DON'T say "I'll do X" then take another screenshot
+- DON'T take screenshot before clicking
+- JUST CLICK IT NOW!
 
-WHEN NOT TO USE TOOLS:
-- Simple greetings (hello, hi, how are you)
-- General questions or conversation
-- Requests for explanations or information you already know
+Example WRONG:
+"I'll open Chrome" → windows_take_screenshot() ❌
 
-IMPORTANT: For simple conversation, just respond naturally without calling any tools.
-
-Workflow for GUI tasks:
-1. Write a brief explanation of what you're about to do (1-2 sentences)
-2. Call the appropriate tool (function call)
-3. After receiving tool results, provide DETAILED analysis (3-5 sentences minimum explaining what you see/found and what it means)
-
-Example conversation:
-User: "Open Calculator"
-
-Turn 1:
-Text: "I'll take a screenshot to see the current desktop state."
-Tool: windows_take_screenshot()
-
-Turn 2 (after screenshot - DETAILED ANALYSIS REQUIRED):
-Text: "I can see the Windows desktop with the taskbar at the bottom. The Start button is clearly visible at coordinates (782, 1056) in the lower left corner. The desktop appears clean with no open windows. I'll click the Start button to open the Start menu so I can search for the Calculator application."
-Tool: windows_click_mouse({x: 782, y: 1056})
-
-Turn 3 (after click):
-Text: "I'll take a screenshot to verify the Start menu opened."
-Tool: windows_take_screenshot()
-
-Turn 4 (after screenshot - DETAILED ANALYSIS REQUIRED):
-Text: "Perfect! The Start menu is now open and I can see the search box is prominently displayed at the top. The search field is ready for input and the menu is fully expanded. I can see various pinned apps and the search functionality is active. I'll type 'calculator' in the search box to find the Calculator app."
-Tool: windows_type_text({text: "calculator"})
-
-Turn 5 (after typing):
-Text: "I've typed 'calculator' in the search box. The search should now show the Calculator app in the results. I'll press Enter to launch the Calculator app from the search results."
-Tool: windows_press_key({key: "return"})
-
-Turn 6 (after Enter):
-Text: "I'll take a screenshot to verify the Calculator opened successfully."
-Tool: windows_take_screenshot()
-
-Turn 7 (after screenshot - DETAILED ANALYSIS REQUIRED):
-Text: "Excellent! The Calculator window is now visible and active on the screen. I can see the calculator interface with all the number buttons and operation buttons clearly displayed. The app has launched successfully and is ready for use. The task has been completed successfully - the Calculator is now open and functional."
-
-Turn 8:
-Text: "The Calculator is now open and maximized. Task complete."
-Tool: NONE (final message)
-
-Rules:
-- For simple conversation, respond naturally without tools
-- For GUI tasks, always take screenshot before clicking anything
-- After each screenshot, describe what you see
-- Maximize windows after opening: windows_press_key({key: "win+up"})
-- Never call a tool without explaining what you're doing first
-- Final turn: text only, no tool call`;
-    }
-    
-    // LOW REASONING PROMPT - Ultra simple
-    if (reasoningLevel === 'low') {
-      return `Control Windows 11. Tools:
-- windows_take_screenshot()
-- windows_click_mouse({x, y})
-- windows_type_text({text})
-- windows_press_key({key})
-
-Steps:
-1. Screenshot first
-2. Say what you see
-3. Do action
-4. Repeat
-5. When done: say "complete"
-
-Start: Call windows_take_screenshot()`;
-    }
-    
-    // MEDIUM REASONING PROMPT - Balanced
-    const isOpenAI = modelName && modelName.toLowerCase().includes('gpt');
-    
-    if (isOpenAI) {
-      // OpenAI-specific prompt - emphasize analysis and iteration
-      return `You control a Windows 11 desktop. You have access to these functions:
-
-AVAILABLE FUNCTIONS:
-- windows_take_screenshot() - Returns screen data with UI elements, text, and coordinates
-- windows_click_mouse({x, y}) - Click at coordinates
-- windows_type_text({text}) - Type text string
-- windows_press_key({key}) - Press keyboard keys
-- windows_execute_powershell({command}) - Run PowerShell
-
-CRITICAL: DO NOT write "Tool:" or "Function:" in your text responses. Just write natural text and make the actual function call.
-
-HOW TO WORK:
-1. Take screenshot FIRST to see current state
-2. ANALYZE what you see in the screenshot results
-3. Based on analysis, decide next action
-4. Take action with appropriate function
-5. Take screenshot again to verify
-6. REPEAT steps 2-5 until task is 100% COMPLETE
+Example CORRECT:
+"I'll open Chrome" → windows_click_mouse(38, 147) ✅
 
 CRITICAL RULES:
-- You must REACT to what you actually see, not follow a pre-planned sequence
-- After EVERY screenshot, you MUST analyze it AND take the next action
-- NEVER stop after just describing what you see - always take the next action
-- Only stop when the task is COMPLETELY finished (no more actions needed)
-- DO NOT write "Tool:" or "Function:" in your text - just make the actual function call
 
-EXAMPLE WORKFLOW:
-User: "Open Calculator"
+1. CONVERSATIONAL vs DESKTOP:
+   - Chat (hello, thanks) → Respond naturally, NO tools
+   - Desktop tasks (open X, click Y) → Use tools
 
-Turn 1:
-Text: "Taking screenshot to see current desktop state"
-[Makes function call to windows_take_screenshot]
+2. IF YOU SEE IT → ACT ON IT NOW!
+   - Videos visible + "click video" → CLICK immediately
+   - Search bar visible → CLICK and TYPE immediately
+   - Chrome icon visible → CLICK immediately
+   - Don't take another screenshot if you already see what you need
+   - ONLY take screenshot AFTER an action to verify the result
 
-Turn 2 (AFTER seeing screenshot results):
-Text: "I can see the Windows desktop. The taskbar shows several icons. I can see the Start button at coordinates (782, 1056) in the bottom left. I'll click it to open the Start menu."
-[Makes function call to windows_click_mouse with x: 782, y: 1056]
+3. SCREENSHOT RULES:
+   - Take screenshot at START of task to see current state
+   - Take screenshot AFTER actions to verify they worked
+   - DO NOT take screenshot before every action
+   - If you just took a screenshot and see what you need → ACT, don't screenshot again
+   - NEVER say "I'll do X" then take screenshot - just DO X!
 
-Turn 3:
-Text: "Checking if Start menu opened"
-[Makes function call to windows_take_screenshot]
+4. WORKFLOW: Screenshot → Act → Screenshot (verify) → Act → Done
+   NOT: Screenshot → Screenshot → Screenshot → Act
 
-Turn 4 (AFTER seeing screenshot results):
-Text: "The Start menu is now open. I can see the search box is active at the top. I'll type 'calculator' to search for the Calculator app."
-[Makes function call to windows_type_text with text: "calculator"]
+TOOLS:
+- windows_take_screenshot() - See screen
+- windows_click_mouse(x, y, double) - Click (double=true for icons)
+- windows_move_mouse(x, y) - Move mouse to position
+- windows_type_text(text) - Type
+- windows_press_key(key) - Keys (ctrl+a, enter, alt+f4, win+up, win+down)
+- windows_scroll(direction, clicks) - Scroll (direction: "up" or "down", clicks: amount, default 750)
 
-Turn 5:
-Text: "Checking search results"
-[Makes function call to windows_take_screenshot]
+COORDINATES:
+- For SEARCH BARS: Look in KEY ELEMENTS for control_type_name: "ComboBox" or "Edit"
+- For VIDEOS/BUTTONS: Look in KEY ELEMENTS section (most reliable for clickable elements)
+- Video thumbnails: Find Button with video title text in KEY ELEMENTS, use those coordinates
+- Desktop icons: Find in DESKTOP ICONS section with coordinates
+- MANDATORY: State exact coordinates before clicking: "I found X at (123, 456). Clicking at (123, 456)."
 
-Turn 6 (AFTER seeing screenshot results):
-Text: "I can see 'Calculator' appears in the search results. I'll press Enter to launch it."
-[Makes function call to windows_press_key with key: "return"]
+🚨 BEFORE EVERY CLICK YOU MUST SAY:
+- For search bars: "I found [element] ComboBox in KEY ELEMENTS at (X, Y)."
+- For other elements: "I found [element] in KEY ELEMENTS at (X, Y)."
 
-Turn 7:
-Text: "Verifying Calculator opened"
-[Makes function call to windows_take_screenshot]
+THEN CHECK Y-COORDINATE (MANDATORY):
+- If Y > 1000: "Y=1516 is OFF-SCREEN (>1000). Must scroll down first."
+  → Call windows_scroll(direction="down", clicks=750)
+  → Take screenshot
+  → Find element again with valid Y
+- If Y < 100: "Y=50 is above visible area (<100). Must scroll up first."
+  → Call windows_scroll(direction="up", clicks=750)
+  → Take screenshot
+  → Find element again with valid Y
+- If 100 <= Y <= 1000: "Y=450 is valid (100-1000). Clicking at (X, Y)."
+  → Call windows_click_mouse(x=X, y=Y)
 
-Turn 8 (AFTER seeing screenshot results):
-Text: "Calculator is now open and visible on screen. The window shows it's not maximized (isMaximized: false). I'll maximize it for better visibility."
-[Makes function call to windows_press_key with key: "win+up"]
+EXAMPLE - OFF-SCREEN ELEMENT:
+"I found video at (1087, 1516). Y=1516 is OFF-SCREEN (>1000). Must scroll down first."
+→ windows_scroll(direction="down", clicks=750)
+→ Take screenshot
+→ "I found video at (650, 450). Y=450 is valid. Clicking at (650, 450)."
+→ windows_click_mouse(x=650, y=450)
 
-Turn 9:
-Text: "Verifying maximization"
-[Makes function call to windows_take_screenshot]
+NEVER CLICK IF Y > 1000 OR Y < 100!
 
-Turn 10 (AFTER seeing screenshot results):
-Text: "Calculator is now maximized (isMaximized: true) and fully functional. Task complete."
-[No function call - task is done]
+FINDING VIDEOS ON YOUTUBE:
+1. Look in KEY ELEMENTS section for Button elements
+2. Find buttons with video title text (e.g., "10 People Fight For $5,000,000")
+3. Use the coordinates from that Button element
+4. Click those exact coordinates
+5. DO NOT click random coordinates - use KEY ELEMENTS data
 
-WRONG BEHAVIOR (DO NOT DO THIS):
-❌ Turn 1: "I'll take a screenshot. Tool: windows_take_screenshot()"  ← WRONG! Don't write "Tool:"
-❌ Turn 7: "Verifying Calculator opened"
-   [Makes function call to windows_take_screenshot]
+🚨 FINDING SEARCH BARS (CRITICAL):
+YouTube search has 2 elements with "Search" name in KEY ELEMENTS:
+
+1. ✅ CORRECT: YouTube search INPUT field
+   - Look in KEY ELEMENTS for "Search" with control_type_name: "ComboBox"
+   - This is the text input field where you type
+   - Usually at Y ≈ 100-200, X ≈ 900 (center of input field)
    
-❌ Turn 8: "Calculator is now open on screen."
-   [No function call]  ← WRONG! You didn't check if it's maximized or take any action!
+2. ❌ WRONG: YouTube search BUTTON (magnifying glass)
+   - This is "Search" with control_type_name: "Button"
+   - Usually at Y ≈ 100-200, X ≈ 1200 (far right)
+   - DO NOT click this - it's the search button, not the input field
 
-RIGHT BEHAVIOR (DO THIS):
-✅ Turn 1: "Taking screenshot to see desktop"  ← CORRECT! No "Tool:" in text
-   [Makes function call to windows_take_screenshot]
-   
-✅ Turn 7: "Verifying Calculator opened"
-   [Makes function call to windows_take_screenshot]
-   
-✅ Turn 8: "Calculator is open but not maximized (isMaximized: false). I'll maximize it."
-   [Makes function call to windows_press_key]  ← CORRECT! You analyzed AND acted!
+3. ❌ WRONG: Taskbar search
+   - This is "Search" at Y > 1000 (bottom taskbar)
+   - DO NOT click this
 
-KEY PRINCIPLES:
-✅ Always take screenshot before clicking anything
-✅ After EVERY screenshot, describe what you see AND take the next action
-✅ Base your next action on what you actually observed
-✅ Verify actions worked by taking another screenshot
-✅ Check window maximization state and maximize if needed
-✅ Continue until task is 100% complete - don't stop early!
-✅ Write natural text without "Tool:" or "Function:" labels
+RULE: When searching on YouTube:
+- Look in KEY ELEMENTS for "Search" with control_type_name: "ComboBox"
+- DO NOT click "Search" with control_type_name: "Button" (that's the magnifying glass)
+- DO NOT click "Search" at Y > 1000 (that's taskbar)
+- The ComboBox is the INPUT FIELD, the Button is the search button
 
-❌ Don't write "Tool:" or "Function:" in your text responses
-❌ Don't stop after just describing a screenshot - always take the next action
-❌ Don't execute a pre-planned sequence without checking results
-❌ Don't assume actions worked - verify with screenshots
-❌ Don't skip analysis of screenshot data
+SCROLLING:
+- If content not visible on screen, scroll to find it
+- If element Y > 1000 (off-screen), scroll down first
+- If element Y < 100 (above visible area), scroll up first
+- Scroll down: windows_scroll(direction="down", clicks=750)
+- Scroll up: windows_scroll(direction="up", clicks=750)
+- Default scroll amount is 750 clicks (both up and down)
+- After scrolling, take screenshot to see new content
+- Look for element with valid Y coordinate (100-1000)
+- Example: Element at Y=1516 → Scroll down → Screenshot → Find element at valid Y
 
-Remember: LOOK → ANALYZE → ACT → VERIFY → REPEAT until DONE!`;
-    }
-    
-    // Standard medium prompt for other models (Mistral, etc.)
-    return `You can control a Windows 11 desktop when needed. Tools:
-- windows_take_screenshot() - Capture screen (returns detailed screen data)
-- windows_click_mouse({x, y}) - Click at coordinates
-- windows_type_text({text}) - Type text
-- windows_press_key({key}) - Press keys
-- windows_execute_powershell({command}) - Run PowerShell command
+🚨 TRACK YOUR SCROLL POSITION:
+- Remember how much you scrolled during the task
+- Example: Scrolled down 750 twice = 1500 clicks down total
+- To return to top (search bar): Scroll up 1500 clicks total
+- You can scroll multiple times: windows_scroll("up", 750) then windows_scroll("up", 750)
+- Or scroll larger amount: windows_scroll("up", 1500)
 
-WHEN TO USE TOOLS:
-- User asks you to perform GUI tasks (open apps, click buttons, etc.)
-- User requests screenshots or visual information
+🚨 SEARCH BAR NAVIGATION:
+- Search bar is at TOP of page (Y < 200)
+- If you scrolled down and search bar not visible → Scroll back up to top
+- Calculate: If scrolled down 1500 clicks → Scroll up 1500 clicks to see search bar
+- After scrolling up, take screenshot to verify search bar visible
 
-WHEN NOT TO USE TOOLS:
-- Simple greetings (hello, hi, how are you)
-- General questions or conversation
-- Requests for explanations or information you already know
+🚨 IF SCROLL DOESN'T WORK (screen unchanged after scroll):
+1. Mouse might not be over scrollable area
+2. Move mouse to center of page: windows_move_mouse(x=960, y=540)
+3. Try scrolling again: windows_scroll(direction="down", clicks=750)
+4. Take screenshot to verify scroll worked
 
-Turn structure for tasks:
-1. Generate text describing what you're doing OR what you see
-2. Call ONE tool function
-3. Repeat
+SEARCH WORKFLOW:
+1. Find search bar (usually at top, Y < 200)
+2. If search bar not visible (scrolled down), scroll back up to top
+3. Click search bar
+4. Press Ctrl+A (clear old text - ALWAYS do this even if search bar looks empty)
+5. Type new query
+6. Press Enter
 
-After screenshot turns, describe:
-1. Windows and their state (maximized/minimized/normal size)
-2. Buttons, text, and UI elements with coordinates
-3. Mouse position
-4. What action to take next
+EXAMPLE - Search after scrolling:
+- You scrolled down 1500 clicks to find video
+- Now need to search again
+- Search bar not visible (it's at top)
+- Scroll up 1500 clicks: windows_scroll("up", 1500)
+- Take screenshot
+- Find search bar at valid Y coordinate
+- Click search bar
+- Press Ctrl+A (clear any old text)
+- Type new query
+- Press Enter
 
-IMPORTANT: After opening applications, check if windows are maximized.
-If not maximized, use windows_press_key({key: "win+up"}) to maximize them.
+WINDOW FOCUS:
+- Check "Windows" list in screenshot
+- If window open → Work in that window only
+- If desktop → Use desktop icons
 
-Example workflow:
-User: "Open Notepad"
+VERIFICATION:
+- After click, take screenshot to verify
+- Check if window changed or new content appeared
+- If opened wrong thing (file manager, wrong app), close it and try again
+- If nothing changed, look for different element in KEY ELEMENTS
+- Say "Done" when complete
 
-Turn 1: "I'll take a screenshot to see the current desktop state."
-[Calls: windows_take_screenshot()]
-
-Turn 2: "I can see the Windows 11 desktop. The taskbar is visible at the bottom. The Start button is located at coordinates (782, 1056). I'll click it."
-[Calls: windows_click_mouse({x: 782, y: 1056})]
-
-Turn 3: "I'll type 'notepad' to search for the Notepad application."
-[Calls: windows_type_text({text: "notepad"})]
-
-Turn 4: "I'll press Enter to launch Notepad."
-[Calls: windows_press_key({key: "return"})]
-
-Turn 5: "I'll take a screenshot to verify Notepad opened and check if it's maximized."
-[Calls: windows_take_screenshot()]
-
-Turn 6: "I can see Notepad is now open. The window is NOT maximized (isMaximized: false). I'll maximize it for better visibility."
-[Calls: windows_press_key({key: "win+up"})]
-
-Turn 7: "Notepad is now maximized. Task complete."
-[No function call]
-
-CRITICAL RULES:
-- For simple conversation, respond naturally without tools
-- For tasks, NEVER call a tool without text first
-- ALWAYS describe screenshots in detail (windows, state, text, coordinates)
-- CHECK window maximization state after opening applications
-- MAXIMIZE windows if they're not already maximized
-- Each turn needs text + tool (except final turn which is text only)
-- Use specific details from screen data in your descriptions
-- DO NOT write "Text:" or "Tool:" - just generate the content naturally`;
-  }}
+NEVER:
+- Click same spot twice
+- Take screenshot between Ctrl+A and typing
+- Click taskbar (y > 1000) when trying to click page content
+- Click coordinates with Y > 1000 without scrolling first
+- Use random coordinates - always read from KEY ELEMENTS
+- Click without stating exact (X, Y) coordinates first
+- Say "I'll click on the coordinates" without showing numbers`;
+  }
+}
 
 module.exports = ModeSystemPrompts;

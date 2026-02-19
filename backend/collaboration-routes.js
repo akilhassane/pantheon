@@ -12,9 +12,10 @@ const router = express.Router();
  * @param {Object} collaborationManager - CollaborationManager instance
  * @param {Object} sessionManager - SessionManager instance (optional)
  * @param {Object} collaborationWS - CollaborationWebSocketHandler instance (optional)
+ * @param {Object} globalWS - GlobalWebSocketHandler instance (optional)
  * @returns {Router} Express router
  */
-function setupCollaborationRoutes(collaborationManager, sessionManager = null, collaborationWS = null) {
+function setupCollaborationRoutes(collaborationManager, sessionManager = null, collaborationWS = null, globalWS = null) {
   // Get supabase client from collaborationManager
   const supabase = collaborationManager.supabase;
   
@@ -66,7 +67,7 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
    * POST /api/collaborations/join
    * Join a project using Project ID
    */
-  router.post('/join', async (req, res) => {
+  router.post('/collaborations/join', async (req, res) => {
     console.log('[CollaborationRoutes] POST /api/collaborations/join');
     
     try {
@@ -136,7 +137,7 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
    * GET /api/collaborations
    * Get all collaborations for a user
    */
-  router.get('/', async (req, res) => {
+  router.get('/collaborations', async (req, res) => {
     console.log('[CollaborationRoutes] GET /api/collaborations');
     
     try {
@@ -171,7 +172,7 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
    * DELETE /api/collaborations/:projectId
    * Leave a collaboration
    */
-  router.delete('/:projectId', async (req, res) => {
+  router.delete('/collaborations/:projectId', async (req, res) => {
     console.log(`[CollaborationRoutes] DELETE /api/collaborations/${req.params.projectId}`);
     
     try {
@@ -185,9 +186,13 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
         });
       }
       
-      // Get user name before leaving (for notification)
-      const { data: userData } = await supabase.auth.admin.getUserById(userId);
-      const userName = userData?.user?.email || userData?.user?.user_metadata?.full_name || 'User';
+      // Get user name before leaving (for notification) from users table
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .single();
+      const userName = userData?.email || 'User';
       
       await collaborationManager.leaveProject(projectId, userId);
       
@@ -288,28 +293,26 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
         });
       }
       
-      // Find user by email or username
+      // Find user by email from users table
       let targetUser = null;
       
-      // Try to find by email first
+      // Try to find by email
       if (usernameOrEmail.includes('@')) {
-        const { data: users } = await supabase.auth.admin.listUsers();
-        targetUser = users?.users?.find(u => u.email === usernameOrEmail);
-      }
-      
-      // If not found by email, try by username (stored in user_metadata)
-      if (!targetUser) {
-        const { data: users } = await supabase.auth.admin.listUsers();
-        targetUser = users?.users?.find(u => 
-          u.user_metadata?.username === usernameOrEmail ||
-          u.user_metadata?.full_name === usernameOrEmail
-        );
+        const { data: user } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', usernameOrEmail)
+          .single();
+        
+        if (user) {
+          targetUser = { id: user.id, email: user.email };
+        }
       }
       
       if (!targetUser) {
         return res.status(404).json({
           error: 'USER_NOT_FOUND',
-          message: 'User not found with that email or username'
+          message: 'User not found with that email'
         });
       }
       
@@ -321,46 +324,15 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
         });
       }
       
-      // Find or create collaboration
-      let { data: collaboration } = await supabase
+      // Check if user is already a collaborator
+      const { data: existingCollab } = await supabase
         .from('collaborations')
         .select('id')
         .eq('project_id', projectId)
-        .single();
-      
-      if (!collaboration) {
-        // Create collaboration if it doesn't exist
-        const shareToken = require('crypto').randomUUID();
-        const { data: newCollab, error: collabError } = await supabase
-          .from('collaborations')
-          .insert([{
-            project_id: projectId,
-            share_token: shareToken,
-            owner_id: project.owner_id,
-            is_public: false,
-            require_approval: false,
-            created_at: new Date().toISOString(),
-            last_modified: new Date().toISOString()
-          }])
-          .select()
-          .single();
-        
-        if (collabError) {
-          throw new Error(`Failed to create collaboration: ${collabError.message}`);
-        }
-        
-        collaboration = newCollab;
-      }
-      
-      // Check if user is already a collaborator
-      const { data: existingAccess } = await supabase
-        .from('collaborator_access')
-        .select('id')
-        .eq('collaboration_id', collaboration.id)
         .eq('user_id', targetUser.id)
         .single();
       
-      if (existingAccess) {
+      if (existingCollab) {
         return res.status(400).json({
           error: 'ALREADY_COLLABORATOR',
           message: 'User is already a collaborator'
@@ -369,14 +341,12 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
       
       // Add user as collaborator
       const { error: insertError } = await supabase
-        .from('collaborator_access')
+        .from('collaborations')
         .insert([{
-          collaboration_id: collaboration.id,
+          project_id: projectId,
           user_id: targetUser.id,
-          user_name: targetUser.email || targetUser.user_metadata?.full_name || 'User',
-          permissions: 'read',
-          joined_at: new Date().toISOString(),
-          last_active: new Date().toISOString(),
+          role: 'viewer',
+          created_at: new Date().toISOString(),
           is_visible: true
         }]);
       
@@ -384,15 +354,37 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
         throw new Error(`Failed to add collaborator: ${insertError.message}`);
       }
       
-      // Broadcast to all users that a new collaborator was added
+      // Get project name for notification
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', projectId)
+        .single();
+      const projectName = projectData?.name || 'Project';
+      
+      // Notify the added user via global WebSocket (if they're connected)
+      if (globalWS) {
+        const notified = globalWS.notifyCollaborationAdded(targetUser.id, projectId, projectName);
+        console.log(`[CollaborationRoutes] 🌐 Global notification sent to ${targetUser.email}: ${notified ? 'success' : 'user not connected'}`);
+      }
+      
+      // Broadcast to all users in the project that a new collaborator was added
       if (collaborationWS) {
-        const userName = targetUser.email || targetUser.user_metadata?.full_name || 'User';
-        console.log(`[CollaborationRoutes] 📢 Broadcasting collaborator-joined for ${userName}`);
-        collaborationWS.broadcastToProject(projectId, {
-          type: 'collaborator-joined',
-          userId: targetUser.id,
-          userName,
-          timestamp: new Date().toISOString()
+        const userName = targetUser.email || 'User';
+        console.log(`[CollaborationRoutes] 📢 Broadcasting collaborator-joined for ${userName} to project ${projectId}`);
+        
+        // Broadcast to all connected clients (not just project members)
+        // This ensures both the owner and the new collaborator receive the update
+        collaborationWS.wss.clients.forEach(client => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(JSON.stringify({
+              type: 'collaborator-joined',
+              userId: targetUser.id,
+              userName,
+              projectId,
+              timestamp: new Date().toISOString()
+            }));
+          }
         });
       }
       
@@ -461,20 +453,37 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
     try {
       const { id: projectId, userId } = req.params;
       
-      // Get user name before revoking (for notification)
-      const { data: userData } = await supabase.auth.admin.getUserById(userId);
-      const userName = userData?.user?.email || userData?.user?.user_metadata?.full_name || 'User';
+      // Get user name before revoking (for notification) from users table
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .single();
+      const userName = userData?.email || 'User';
       
       await collaborationManager.revokeAccess(projectId, userId);
       
+      // Notify the removed user via global WebSocket (if they're connected)
+      if (globalWS) {
+        const notified = globalWS.notifyCollaborationRemoved(userId, projectId);
+        console.log(`[CollaborationRoutes] 🌐 Global notification sent to ${userName}: ${notified ? 'success' : 'user not connected'}`);
+      }
+      
       // Broadcast to all users in the project that someone was removed
       if (collaborationWS) {
-        console.log(`[CollaborationRoutes] 📢 Broadcasting collaborator-removed for ${userName}`);
-        collaborationWS.broadcastToProject(projectId, {
-          type: 'collaborator-removed',
-          userId,
-          userName,
-          timestamp: new Date().toISOString()
+        console.log(`[CollaborationRoutes] 📢 Broadcasting collaborator-removed for ${userName} from project ${projectId}`);
+        
+        // Broadcast to all connected clients
+        collaborationWS.wss.clients.forEach(client => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(JSON.stringify({
+              type: 'collaborator-removed',
+              userId,
+              userName,
+              projectId,
+              timestamp: new Date().toISOString()
+            }));
+          }
         });
       } else {
         console.warn('[CollaborationRoutes] ⚠️ collaborationWS not available, cannot broadcast');
@@ -534,34 +543,24 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
         });
       }
       
-      // Find collaboration
-      const { data: collaboration } = await supabase
-        .from('collaborations')
-        .select('id')
-        .eq('project_id', projectId)
-        .single();
-      
-      if (!collaboration) {
-        return res.status(404).json({
-          error: 'COLLABORATION_NOT_FOUND',
-          message: 'Collaboration not found'
-        });
-      }
-      
-      // Update visibility
+      // Update visibility in collaborations table
       const { error: updateError } = await supabase
-        .from('collaborator_access')
+        .from('collaborations')
         .update({ is_visible: isVisible })
-        .eq('collaboration_id', collaboration.id)
+        .eq('project_id', projectId)
         .eq('user_id', targetUserId);
       
       if (updateError) {
         throw new Error(`Failed to update visibility: ${updateError.message}`);
       }
       
-      // Get user name for broadcast
-      const { data: userData } = await supabase.auth.admin.getUserById(targetUserId);
-      const userName = userData?.user?.email || userData?.user?.user_metadata?.full_name || 'User';
+      // Get user name for broadcast from users table
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', targetUserId)
+        .single();
+      const userName = userData?.email || 'User';
       
       // Broadcast visibility change to all users
       if (collaborationWS) {
@@ -682,7 +681,7 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
    * GET /api/collaborations/:shareToken/sessions
    * Get all sessions for a collaboration (by share token)
    */
-  router.get('/:shareToken/sessions', async (req, res) => {
+  router.get('/collaborations/:shareToken/sessions', async (req, res) => {
     console.log(`[CollaborationRoutes] GET /api/collaborations/${req.params.shareToken}/sessions`);
     
     try {
@@ -737,7 +736,7 @@ function setupCollaborationRoutes(collaborationManager, sessionManager = null, c
    * POST /api/collaborations/:shareToken/sessions
    * Create a new session in a collaboration
    */
-  router.post('/:shareToken/sessions', async (req, res) => {
+  router.post('/collaborations/:shareToken/sessions', async (req, res) => {
     console.log(`[CollaborationRoutes] POST /api/collaborations/${req.params.shareToken}/sessions`);
     
     try {

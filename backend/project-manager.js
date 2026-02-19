@@ -10,6 +10,7 @@
 const Docker = require('dockerode');
 const crypto = require('crypto');
 const { getApiKeyGenerator } = require('./utils/api-key-generator');
+const { retryQuery } = require('./config/supabase-client');
 
 // UUID v4 generator (compatible with CommonJS)
 function uuidv4() {
@@ -182,15 +183,28 @@ class ProjectManager {
     try {
       console.log('[ProjectManager] 🔄 Restoring shared folder containers for Windows projects...');
       
-      // Query all Windows projects from database
-      const { data: projects, error } = await this.supabase
-        .from('projects')
-        .select('id, name, vnc_port, operating_system, mcp_api_key')
-        .in('operating_system', ['windows-11', 'windows-10'])
-        .neq('status', 'deleted');
+      // Query all Windows projects from database with aggressive retry logic for startup
+      const { data: projects, error } = await retryQuery(
+        async () => {
+          return await this.supabase
+            .from('projects')
+            .select('id, name, vnc_port, operating_system, mcp_api_key')
+            .in('operating_system', ['windows-11', 'windows-10'])
+            .neq('status', 'deleted');
+        },
+        {
+          maxRetries: 5,
+          initialDelay: 3000,
+          maxDelay: 15000,
+          onRetry: (attempt, maxRetries, delay, error) => {
+            console.log(`[ProjectManager] ⏳ Database query attempt ${attempt}/${maxRetries} failed, retrying in ${Math.floor(delay/1000)}s... (database may be waking up)`);
+          }
+        }
+      );
       
       if (error) {
-        console.error('[ProjectManager] ❌ Failed to query Windows projects:', error.message);
+        console.error('[ProjectManager] ❌ Failed to query Windows projects after retries:', error.message);
+        console.error('[ProjectManager] ℹ️  Database may still be waking up. This is normal for free tier Supabase.');
         return;
       }
       
@@ -338,14 +352,27 @@ class ProjectManager {
     try {
       console.log('[ProjectManager] 🔄 Starting health monitoring for existing projects...');
       
-      // Query all non-deleted projects
-      const { data: projects, error } = await this.supabase
-        .from('projects')
-        .select('id, status')
-        .neq('status', 'deleted');
+      // Query all non-deleted projects with aggressive retry logic for startup
+      const { data: projects, error } = await retryQuery(
+        async () => {
+          return await this.supabase
+            .from('projects')
+            .select('id, status')
+            .neq('status', 'deleted');
+        },
+        {
+          maxRetries: 5,
+          initialDelay: 3000,
+          maxDelay: 15000,
+          onRetry: (attempt, maxRetries, delay, error) => {
+            console.log(`[ProjectManager] ⏳ Database query attempt ${attempt}/${maxRetries} failed, retrying in ${Math.floor(delay/1000)}s... (database may be waking up)`);
+          }
+        }
+      );
       
       if (error) {
-        console.error('[ProjectManager] ❌ Failed to query projects:', error.message);
+        console.error('[ProjectManager] ❌ Failed to query projects after retries:', error.message);
+        console.error('[ProjectManager] ℹ️  Database may still be waking up. This is normal for free tier Supabase.');
         return;
       }
       

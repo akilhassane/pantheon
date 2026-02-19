@@ -52,6 +52,18 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     // Force redirect to localhost instead of container hostname
     redirectTo: getRedirectUrl()
+  },
+  global: {
+    fetch: (url, options = {}) => {
+      // Add 10 second timeout to all Supabase requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      return fetch(url, {
+        ...options,
+        signal: controller.signal
+      }).finally(() => clearTimeout(timeoutId));
+    }
   }
 });
 

@@ -33,6 +33,7 @@ import { KeyboardSettings } from '@/components/settings/KeyboardSettings'
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings'
 import { Users as UsersIcon } from 'lucide-react'
 import { useCollaborationWebSocket } from '@/hooks/useCollaborationWebSocket'
+import { useGlobalWebSocket } from '@/hooks/useGlobalWebSocket'
 import { supabase, getSessionToken } from '@/lib/supabase'
 import { SignInButton } from '@/components/auth/SignInButton'
 import type { User } from '@supabase/supabase-js'
@@ -78,32 +79,16 @@ const DesktopIframe = ({ project, isModalOpen, isVisible }: { project: Project; 
     return <div className="w-full h-full bg-black rounded-lg" />
   }
   
-  // Build VNC URL - use Cloudflare tunnel URL if available, otherwise proxy through backend
-  let vncUrl;
-  
-  if (project.vncUrl) {
-    // Use direct Cloudflare tunnel URL
-    vncUrl = project.vncUrl;
-    console.log('🔗 Using direct VNC tunnel URL:', vncUrl);
-  } else {
-    // Fallback to backend proxy for local development
-    const backendUrl = typeof window !== 'undefined'
-      ? 'http://localhost:3002'
-      : 'http://backend:3002';
-    
-    const baseUrl = `${backendUrl}/api/proxy/${project.id}/vnc`;
-    const vncFile = 'vnc_lite.html';
-    vncUrl = `${baseUrl}/${vncFile}?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`;
-    
-    console.log('🔗 Using backend proxy VNC URL:', vncUrl);
-  }
+  // Build VNC URL - use direct connection to noVNC port
+  // The noVNC port is exposed on the host, so we can connect directly
+  const vncUrl = `http://localhost:${project.novncPort}/vnc_lite.html?autoconnect=1&resize=remote&reconnect=1&show_dot=0&view_only=0&quality=9&compression=2`
   
   console.log('🔗 VNC URL Configuration:', {
     projectName: project.name,
     projectId: project.id,
     containerName: project.containerName,
-    hasDirectUrl: !!project.vncUrl,
-    finalVncUrl: vncUrl
+    novncPort: project.novncPort,
+    directVncUrl: vncUrl
   })
   
   return (
@@ -380,63 +365,9 @@ export default function Home() {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
   
-  // Initialize selectedModel with default from settings (synchronously)
-  const [selectedModel, setSelectedModel] = useState(() => {
-    try {
-      // Synchronously load settings to get default model
-      if (typeof window !== 'undefined') {
-        const settingsStr = localStorage.getItem('app-settings')
-        if (settingsStr) {
-          const settings = JSON.parse(settingsStr)
-          const defaultModel = settings?.models?.defaultModel
-          const configuredModels = settings?.models?.configuredModels || []
-          
-          console.log('🔍 [INIT] Settings loaded:', {
-            hasModels: !!settings?.models,
-            defaultModel: defaultModel,
-            configuredModelsCount: configuredModels.length,
-            visibleModelsCount: configuredModels.filter((m: any) => m.visible).length
-          })
-          
-          // Verify the default model exists in configured models and is visible
-          if (defaultModel && configuredModels.length > 0) {
-            const defaultModelConfig = configuredModels.find((m: any) => m.id === defaultModel)
-            
-            console.log('🔍 [INIT] Default model lookup:', {
-              searchingFor: defaultModel,
-              found: !!defaultModelConfig,
-              foundName: defaultModelConfig?.name,
-              foundVisible: defaultModelConfig?.visible
-            })
-            
-            if (defaultModelConfig && defaultModelConfig.visible) {
-              console.log('✅ [INIT] Using default model from settings:', {
-                id: defaultModel,
-                name: defaultModelConfig.name
-              })
-              return defaultModel
-            } else if (defaultModelConfig && !defaultModelConfig.visible) {
-              console.warn('⚠️ [INIT] Default model exists but is not visible:', {
-                id: defaultModel,
-                name: defaultModelConfig.name
-              })
-            } else {
-              console.warn('⚠️ [INIT] Default model not found in configured models:', defaultModel)
-            }
-          } else {
-            console.warn('⚠️ [INIT] No default model set or no configured models')
-          }
-        } else {
-          console.warn('⚠️ [INIT] No settings found in localStorage')
-        }
-      }
-    } catch (error) {
-      console.error('❌ [INIT] Failed to load default model from settings:', error)
-    }
-    // Fallback to empty string if settings not available
-    console.log('⚠️ [INIT] Falling back to empty string, will be set by useEffect')
-    return ''
-  })
+  // Initialize selectedModel with NO default - user must explicitly select
+  // This ensures collaborators can't send messages without choosing a model
+  const [selectedModel, setSelectedModel] = useState<string>('')
   
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; description: string }>>([])
@@ -918,6 +849,28 @@ export default function Home() {
     },
     onCollaboratorRemoved: (userId, userName) => {
       console.log('🚫 Collaborator removed:', userName)
+      
+      // Check if the removed user is the current user
+      if (user && userId === user.id) {
+        // Current user was removed - kick them out
+        addToast({
+          id: generateToastId(),
+          type: 'error',
+          message: 'You have been removed from this project',
+          duration: 5000
+        })
+        
+        // Clear active project and session
+        setActiveProjectId(null)
+        setActiveSessionId(null)
+        
+        // Reload collaborations to remove this project from the list
+        loadCollaborations(user.id, true)
+        
+        return
+      }
+      
+      // Someone else was removed
       addToast({
         id: generateToastId(),
         type: 'warning',
@@ -958,6 +911,61 @@ export default function Home() {
       if (activeProjectId) {
         console.log('🔄 Fetching updated collaborators after all visibility change')
         fetchProjectCollaborators(activeProjectId)
+      }
+    },
+    onCustomModesUpdated: () => {
+      console.log('⚙️ Custom modes updated via WebSocket, reloading...')
+      // Trigger reload of custom modes
+      window.dispatchEvent(new CustomEvent('settings-updated'))
+    },
+    onModelsUpdated: () => {
+      console.log('🤖 Models updated via WebSocket, reloading...')
+      // Trigger reload of models
+      window.dispatchEvent(new CustomEvent('settings-updated'))
+    },
+    onSettingsUpdated: () => {
+      console.log('⚙️ Settings updated via WebSocket, reloading...')
+      // Trigger reload of all settings
+      window.dispatchEvent(new CustomEvent('settings-updated'))
+    }
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // GLOBAL WEBSOCKET: Always-on connection for user-level events
+  // ═══════════════════════════════════════════════════════════════════════════════
+  
+  useGlobalWebSocket({
+    userId: user?.id || null,
+    userName: user?.email || user?.user_metadata?.full_name || 'Anonymous',
+    onCollaborationAdded: (projectId, projectName) => {
+      console.log('🎉 Added to collaboration:', projectName)
+      addToast({
+        id: generateToastId(),
+        type: 'success',
+        message: `You've been added to "${projectName}"`,
+        duration: 4000
+      })
+      // Reload collaborations list
+      if (user) {
+        loadCollaborations(user.id, true)
+      }
+    },
+    onCollaborationRemoved: (projectId) => {
+      console.log('🚫 Removed from collaboration:', projectId)
+      addToast({
+        id: generateToastId(),
+        type: 'error',
+        message: 'You have been removed from a project',
+        duration: 4000
+      })
+      // If this is the active project, clear it
+      if (activeProjectId === projectId) {
+        setActiveProjectId(null)
+        setActiveSessionId(null)
+      }
+      // Reload collaborations list
+      if (user) {
+        loadCollaborations(user.id, true)
       }
     }
   })
@@ -1028,9 +1036,9 @@ export default function Home() {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   // Vercel AI SDK useChat Hook
-  // Use localhost backend for Docker operations
+  // Use environment variable or detect if running in Docker
   const backendUrl = typeof window !== 'undefined'
-    ? 'http://localhost:3002'
+    ? (process.env.NEXT_PUBLIC_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3002`)
     : 'http://backend:3002';
 
   const chatHelpers = useChat({
@@ -1278,52 +1286,48 @@ export default function Home() {
         
         setAvailableModels(visibleModels)
         
-        // Always prioritize the default model from settings on initial load or when settings change
-        if (visibleModels.length > 0) {
-          // Find the default model from settings
+        // Auto-select default model on initial load
+        if (!selectedModel || selectedModel === '') {
           const defaultModelFromSettings = visibleModels.find(m => m.id === settings.models.defaultModel)
+          const modelToSelect = defaultModelFromSettings || visibleModels[0]
           
-          console.log('🔍 [useEffect] Default model lookup:', {
-            searchingFor: settings.models.defaultModel,
-            found: !!defaultModelFromSettings,
-            foundName: defaultModelFromSettings?.name,
-            currentSelected: selectedModel
+          if (modelToSelect) {
+            console.log('🎯 [useEffect] Auto-selecting default model:', {
+              id: modelToSelect.id,
+              name: modelToSelect.name,
+              reason: defaultModelFromSettings ? 'from settings' : 'first visible model'
+            })
+            setSelectedModel(modelToSelect.id)
+          } else {
+            console.log('⚠️ No models available to select')
+          }
+        } else {
+          // Check if current model is still valid
+          const isCurrentModelValid = visibleModels.some(m => m.id === selectedModel)
+          
+          console.log('🔍 [useEffect] Validating current model:', {
+            currentModel: selectedModel,
+            isValid: isCurrentModelValid
           })
           
-          // If no model is selected yet (initial load), use default from settings
-          if (!selectedModel || selectedModel === '') {
-            const modelToUse = defaultModelFromSettings || visibleModels[0]
-            console.log('🎯 [useEffect] Setting initial model:', {
-              id: modelToUse.id,
-              name: modelToUse.name,
-              reason: defaultModelFromSettings ? 'from default setting' : 'first visible model (no default found)'
-            })
-            setSelectedModel(modelToUse.id)
-          } else {
-            // Check if current model is still valid
-            const isCurrentModelValid = visibleModels.some(m => m.id === selectedModel)
+          if (!isCurrentModelValid) {
+            // Current model is not valid, select default
+            const defaultModelFromSettings = visibleModels.find(m => m.id === settings.models.defaultModel)
+            const modelToSelect = defaultModelFromSettings || visibleModels[0]
             
-            console.log('🔍 [useEffect] Validating current model:', {
-              currentModel: selectedModel,
-              isValid: isCurrentModelValid
-            })
-            
-            if (!isCurrentModelValid) {
-              // Current model is not valid, switch to default from settings
-              const modelToUse = defaultModelFromSettings || visibleModels[0]
-              console.log('🔄 [useEffect] Switching to valid model:', {
+            if (modelToSelect) {
+              console.log('🔄 [useEffect] Current model invalid, switching to default:', {
                 from: selectedModel,
-                to: modelToUse.id,
-                toName: modelToUse.name,
-                reason: defaultModelFromSettings ? 'default from settings' : 'first visible model'
+                to: modelToSelect.id,
+                toName: modelToSelect.name
               })
-              setSelectedModel(modelToUse.id)
-            } else {
-              console.log('✅ [useEffect] Current model is valid:', {
-                id: selectedModel,
-                name: visibleModels.find(m => m.id === selectedModel)?.name
-              })
+              setSelectedModel(modelToSelect.id)
             }
+          } else {
+            console.log('✅ [useEffect] Current model is valid:', {
+              id: selectedModel,
+              name: visibleModels.find(m => m.id === selectedModel)?.name
+            })
           }
         }
       } catch (error) {
@@ -1334,10 +1338,10 @@ export default function Home() {
         ]
         setAvailableModels(fallbackModels)
         
-        // Set fallback model if no model is selected
+        // Auto-select fallback model
         if (!selectedModel || selectedModel === '') {
-          console.log('🎯 Setting fallback model: gemini-2.5-flash')
-          setSelectedModel('gemini-2.5-flash')
+          console.log('🎯 [useEffect] Auto-selecting fallback model')
+          setSelectedModel(fallbackModels[0].id)
         }
       }
     }
@@ -1368,11 +1372,11 @@ export default function Home() {
     }
   }, [])
 
-  // Load custom modes from Supabase
+  // Load custom modes from backend API (local database)
   useEffect(() => {
     const loadCustomModes = async () => {
       try {
-        // Get current user
+        // Get current user (only for authentication, not for database access)
         const { data: { user } } = await supabase.auth.getUser()
         
         if (!user) {
@@ -1389,19 +1393,16 @@ export default function Home() {
           return
         }
 
-        // Fetch custom modes from Supabase
-        const { data, error } = await supabase
-          .from('custom_modes')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-
-        if (error) {
-          console.error('Error loading custom modes from Supabase:', error)
-          throw error
+        // Fetch custom modes from backend API (local database)
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/custom-modes?userId=${user.id}`)
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load custom modes: ${response.statusText}`)
         }
 
-        // Transform Supabase data to match our interface
+        const { modes: data } = await response.json()
+
+        // Transform backend data to match our interface
         const modes = (data || []).map((mode: any) => ({
           id: mode.id,
           name: mode.name,
@@ -1416,7 +1417,7 @@ export default function Home() {
         const { SettingsManager } = await import('@/utils/settingsManager')
         SettingsManager.update('customModes', modes)
         
-        console.log('📋 Loaded custom modes from Supabase:', {
+        console.log('📋 Loaded custom modes from backend API (local database):', {
           count: modes.length,
           modes: modes.map((m: any) => ({ id: m.id, name: m.name }))
         })
@@ -1661,24 +1662,9 @@ export default function Home() {
     
     if (!isValid && selectedModel !== '') {
       console.warn('⚠️ [Model Validation] Selected model is not in available models:', selectedModel)
-      
-      // Try to load default from settings
-      try {
-        const { SettingsManager } = require('@/utils/settingsManager')
-        const settings = SettingsManager.load()
-        const defaultModel = availableModels.find(m => m.id === settings.models.defaultModel)
-        
-        if (defaultModel) {
-          console.log('🔄 [Model Validation] Switching to default model:', defaultModel.id, defaultModel.name)
-          setSelectedModel(defaultModel.id)
-        } else {
-          console.log('🔄 [Model Validation] Switching to first available model:', availableModels[0].id, availableModels[0].name)
-          setSelectedModel(availableModels[0].id)
-        }
-      } catch (error) {
-        console.error('Failed to load default model, using first available:', error)
-        setSelectedModel(availableModels[0].id)
-      }
+      // Clear invalid model - user must select a valid one
+      console.log('🔄 [Model Validation] Clearing invalid model selection')
+      setSelectedModel('')
     } else if (isValid) {
       console.log('✅ [Model Validation] Selected model is valid:', selectedModel)
     }
@@ -1856,10 +1842,10 @@ export default function Home() {
     // Switch to new session
     console.log('🔄 Switching to session:', session.id, 'Project:', session.projectId, 'Session model:', session.model)
     
-    // Sync model and custom mode from session
+    // Don't auto-sync model from session - user must explicitly select
+    // This ensures collaborators can't send messages without choosing a model
     if (session.model && session.model !== selectedModel) {
-      console.log(`🔄 Syncing model from session: ${selectedModel} -> ${session.model}`)
-      setSelectedModel(session.model)
+      console.log(`⚠️ Session has model ${session.model}, but not auto-syncing. User must select manually.`)
     }
     
     if (session.customModeId !== selectedCustomMode) {
@@ -2383,8 +2369,8 @@ export default function Home() {
       const headers = await getAuthHeaders()
       // Include userId in query params for visibility filtering (if user is available)
       const url = user 
-        ? `${backendUrl}/api/collaborations/projects/${projectId}/collaborators?userId=${user.id}`
-        : `${backendUrl}/api/collaborations/projects/${projectId}/collaborators`
+        ? `${backendUrl}/api/projects/${projectId}/collaborators?userId=${user.id}`
+        : `${backendUrl}/api/projects/${projectId}/collaborators`
       const response = await fetch(url, {
         headers
       })
@@ -3871,24 +3857,8 @@ export default function Home() {
             })
             setChatHistory(activeSession.chatHistory || [])
             
-            // Use the default model from settings instead of session's stored model
-            try {
-              const { SettingsManager } = require('@/utils/settingsManager')
-              const settings = SettingsManager.load()
-              const visibleModels = settings.models.configuredModels.filter((m: any) => m.visible)
-              const defaultModel = visibleModels.find((m: any) => m.id === settings.models.defaultModel)
-              
-              if (defaultModel) {
-                console.log('🎯 [Session Restore] Using default model from settings:', defaultModel.id)
-                setSelectedModel(defaultModel.id)
-              } else {
-                console.log('🔍 [Session Restore] No default model found, using session model:', activeSession.model)
-                setSelectedModel(activeSession.model)
-              }
-            } catch (error) {
-              console.error('Failed to load default model, using session model:', error)
-              setSelectedModel(activeSession.model)
-            }
+            // Don't auto-set model - user must explicitly select
+            console.log('⚠️ [Session Restore] Not auto-setting model - user must select manually')
             
             // Restore messages to useChat hook - use raw messages if available
             const restoredMessages = (activeSession as any)._rawMessages?.length > 0 
@@ -3902,24 +3872,8 @@ export default function Home() {
           setActiveSessionId(parsedSessions[0].id)
           setChatHistory(parsedSessions[0].chatHistory)
           
-          // Use the default model from settings instead of session's stored model
-          try {
-            const { SettingsManager } = require('@/utils/settingsManager')
-            const settings = SettingsManager.load()
-            const visibleModels = settings.models.configuredModels.filter((m: any) => m.visible)
-            const defaultModel = visibleModels.find((m: any) => m.id === settings.models.defaultModel)
-            
-            if (defaultModel) {
-              console.log('🎯 [Session Restore] Using default model from settings:', defaultModel.id)
-              setSelectedModel(defaultModel.id)
-            } else {
-              console.log('🔍 [Session Restore] No default model found, using first session model:', parsedSessions[0].model)
-              setSelectedModel(parsedSessions[0].model)
-            }
-          } catch (error) {
-            console.error('Failed to load default model, using first session model:', error)
-            setSelectedModel(parsedSessions[0].model)
-          }
+          // Don't auto-set model - user must explicitly select
+          console.log('⚠️ [Session Restore] Not auto-setting model - user must select manually')
           
           // Restore messages to useChat hook - use raw messages if available
           const restoredMessages = (parsedSessions[0] as any)._rawMessages?.length > 0
@@ -3982,12 +3936,74 @@ export default function Home() {
     initAuth()
     
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('🔐 Auth state changed:', _event, session?.user?.email)
       setUser(session?.user ?? null)
       
-      // Reload data when user signs in
-      if (session?.user && _event === 'SIGNED_IN') {
+      // Sync user to local database when they sign in
+      if (session?.user && (_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION')) {
+        try {
+          console.log('🔄 Syncing user to local database...')
+          console.log('User metadata:', session.user.user_metadata)
+          console.log('User identities:', session.user.identities)
+          
+          // Try to get avatar from multiple sources
+          const getAvatarUrl = () => {
+            // Try user_metadata first
+            if (session.user.user_metadata?.avatar_url) {
+              console.log('✅ Found avatar_url in user_metadata')
+              return session.user.user_metadata.avatar_url
+            }
+            if (session.user.user_metadata?.picture) {
+              console.log('✅ Found picture in user_metadata')
+              return session.user.user_metadata.picture
+            }
+            
+            // Try identities array
+            if (session.user.identities && session.user.identities.length > 0) {
+              const googleIdentity = session.user.identities.find((id: any) => id.provider === 'google')
+              if (googleIdentity?.identity_data?.picture) {
+                console.log('✅ Found picture in identities[0].identity_data')
+                return googleIdentity.identity_data.picture
+              }
+              if (googleIdentity?.identity_data?.avatar_url) {
+                console.log('✅ Found avatar_url in identities[0].identity_data')
+                return googleIdentity.identity_data.avatar_url
+              }
+            }
+            
+            console.log('⚠️ No avatar URL found in any source')
+            return null
+          }
+          
+          const avatarUrl = getAvatarUrl()
+          console.log('🖼️ Final avatar URL:', avatarUrl)
+          
+          const headers = await getAuthHeaders()
+          const response = await fetch(`${backendUrl}/api/auth/sync-user`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              userId: session.user.id,
+              email: session.user.email,
+              provider: session.user.app_metadata?.provider || 'google',
+              metadata: {
+                ...session.user.user_metadata,
+                avatar_url: avatarUrl
+              }
+            })
+          })
+          
+          if (response.ok) {
+            console.log('✅ User synced to local database')
+          } else {
+            console.error('❌ Failed to sync user:', await response.text())
+          }
+        } catch (error) {
+          console.error('❌ Error syncing user:', error)
+        }
+        
+        // Load user data
         loadProjects(session.user.id)
         loadCollaborations(session.user.id)
       }
@@ -4833,6 +4849,9 @@ export default function Home() {
       const streamingState = streamingSessionsRef.current.get(activeSessionId);
       
       if (streamingState?.abortController) {
+        // Mark that this was a manual stop so the finally block doesn't interfere
+        (streamingState as any).manualStop = true;
+        
         streamingState.abortController.abort();
         streamingState.abortController = null;
         console.log(`✅ Aborted stream for session ${activeSessionId}`);
@@ -4845,12 +4864,31 @@ export default function Home() {
         console.log(`✅ Cleared keepalive timer for session ${activeSessionId}`);
       }
       
+      // CRITICAL: Save the partial message content before cleaning up
+      if (streamingState?.chatHistory) {
+        console.log(`💾 Saving partial message content for session ${activeSessionId}`, {
+          historyLength: streamingState.chatHistory.length,
+          lastMessage: streamingState.chatHistory[streamingState.chatHistory.length - 1]
+        });
+        
+        // Update the session with the partial content
+        setSessions(prev => prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, chatHistory: streamingState.chatHistory, lastActive: new Date() }
+            : s
+        ));
+        
+        // Update the main chat history display
+        setChatHistory(streamingState.chatHistory);
+      }
+      
       updateSessionStreamingStatus(activeSessionId, 'ready');
       removeStreamingSession(activeSessionId); // Remove from streaming set
       setSessionLoading(activeSessionId, false);
       
-      // Clean up streaming state for this session
-      streamingSessionsRef.current.delete(activeSessionId);
+      // DON'T delete the streaming state yet - let the finally block handle it
+      // This ensures the state is available if needed
+      // streamingSessionsRef.current.delete(activeSessionId);
     }
   };
 
@@ -4954,6 +4992,20 @@ export default function Home() {
           id: `toast_${Date.now()}`,
           type: 'warning',
           message: 'Please sign in to send messages',
+          duration: 3000
+        });
+        if (activeSessionId) {
+          isSendingMessageMap.current.set(activeSessionId, false); // Reset flag
+        }
+        return;
+      }
+      
+      // Check if a model is selected
+      if (!selectedModel || selectedModel === '') {
+        addToast({
+          id: `toast_${Date.now()}`,
+          type: 'warning',
+          message: 'Please select a model before sending messages',
           duration: 3000
         });
         if (activeSessionId) {
@@ -5673,6 +5725,27 @@ export default function Home() {
                               _streamingText: assistantMessage,
                               timestamp: new Date()
                             });
+                          }
+                          return newHistory;
+                        }, messageSentInSessionId);
+                      });
+                    }
+                    
+                    // Handle text-replace events (hide tool call syntax)
+                    if (data.type === 'text-replace' && data.text !== undefined) {
+                      console.log('🔄 Text replace event - hiding tool call syntax');
+                      console.log('   Replacing with:', data.text);
+                      
+                      // Replace the assistant message content with the text before tool call
+                      assistantMessage = data.text;
+                      
+                      ReactDOM.flushSync(() => {
+                        updateChatHistory(prev => {
+                          const newHistory = [...prev];
+                          const lastMsg = newHistory[newHistory.length - 1];
+                          if (lastMsg && lastMsg.role === 'assistant') {
+                            lastMsg.content = assistantMessage;
+                            lastMsg._streamingText = assistantMessage;
                           }
                           return newHistory;
                         }, messageSentInSessionId);
@@ -6535,94 +6608,59 @@ export default function Home() {
           ))
         }
       } else if (response.status === 413) {
-        // Handle 413 Payload Too Large error with automatic retry
-        console.warn('⚠️ 413 Payload Too Large error - attempting retry with aggressive truncation');
+        // Handle 413 Payload Too Large error - create new session automatically
+        console.warn('⚠️ 413 Payload Too Large error - creating new session automatically');
 
         try {
-          // Apply aggressive truncation
-          const aggressiveConfig = {
-            maxHistoryMessages: 10,
-            maxOutputSize: 5 * 1024,
-            maxPayloadSize: 30 * 1024 * 1024,
-            aggressiveTruncationSize: 35 * 1024 * 1024
-          };
-
-          const { truncatedHistory: aggressiveTruncatedHistory } = 
-            historyManager.prepareHistoryForSend(chatHistory, aggressiveConfig);
-
-          console.log('🔄 Retrying with aggressively truncated history...');
-
-          // Retry the request
-          const retryResponse = await fetch(`${backendUrl}/api/chat`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              message: userMessage,
-              history: aggressiveTruncatedHistory,
-              model: selectedModel,
-              mode: mode,
-              projectId: activeProjectId, // Send active project ID so backend uses correct container
-              sessionId: activeSessionId  // CRITICAL: Send session ID for message persistence
-            })
-          });
-
-          if (retryResponse.ok) {
-            const data = await retryResponse.json();
-            const result = data.response || 'No response';
-            const commandOutputs = data.commandOutputs || [];
-
-            console.log('✅ Retry successful!');
-
-            // Add assistant response to chat history
-            const assistantMessage = {
-              role: 'assistant' as const,
-              content: result,
-              commandOutputs: commandOutputs.length > 0 ? commandOutputs : undefined
+          const errorData = await response.json();
+          
+          if (errorData.createNewSession) {
+            // Create a new session automatically
+            const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const newSession = {
+              id: newSessionId,
+              name: `Session ${sessions.length + 1}`,
+              chatHistory: [],
+              createdAt: new Date(),
+              lastActive: new Date()
             };
 
-            setChatHistory(prev => [...prev, assistantMessage]);
+            // Add the new session and switch to it
+            setSessions(prev => [...prev, newSession]);
+            setActiveSessionId(newSessionId);
 
-            if (activeSessionId) {
-              setSessions(prev => prev.map(s =>
-                s.id === activeSessionId
-                  ? { ...s, chatHistory: [...s.chatHistory, assistantMessage], lastActive: new Date() }
-                  : s
-              ))
-            }
+            // Clear current chat history
+            setChatHistory([]);
 
-            // Show warning toast about truncation
+            // Show notification
             addToast({
               id: `toast_${Date.now()}`,
-              type: 'warning',
-              message: 'Chat history was truncated due to size limits. Consider starting a new session.',
+              type: 'info',
+              message: 'Session history too large. Created new session and continuing...',
               duration: 5000
             });
-          } else {
-            throw new Error('Retry also failed with status: ' + retryResponse.status);
+
+            // Wait a bit for state to update, then resend the message
+            setTimeout(() => {
+              console.log('🔄 Resending message in new session:', newSessionId);
+              // The message will be sent automatically since we're in the sendMessage function
+              // Just need to trigger it with the new session
+              sendMessage(userMessage);
+            }, 100);
+
+            return; // Exit current execution
           }
         } catch (retryError) {
-          console.error('❌ Retry failed:', retryError);
-          const errorMsg = '❌ Payload Too Large: Your chat history is too large. Please start a new session to continue.';
-          
-          setChatHistory(prev => [...prev, { role: 'assistant', content: errorMsg }]);
-
-          if (activeSessionId) {
-            setSessions(prev => prev.map(s =>
-              s.id === activeSessionId
-                ? { ...s, chatHistory: [...s.chatHistory, { role: 'assistant', content: errorMsg }], lastActive: new Date() }
-                : s
-            ))
-          }
-
-          addToast({
-            id: `toast_${Date.now()}`,
-            type: 'error',
-            message: 'Chat history too large. Please start a new session.',
-            duration: 5000
-          });
+          console.error('❌ Failed to create new session:', retryError);
         }
+
+        // Fallback error message
+        addToast({
+          id: `toast_${Date.now()}`,
+          type: 'error',
+          message: 'Session too large. Please create a new session manually.',
+          duration: 5000
+        });
       } else {
         // Try to parse error response as JSON, but handle HTML responses
         let errorMessage = response.statusText;
@@ -7114,7 +7152,17 @@ export default function Home() {
           {/* Settings Header */}
           <div className="sticky top-0 z-50 flex items-center gap-4 px-6 py-4 border-b border-zinc-800 bg-[#0a0a0a]">
             <button
-              onClick={() => setShowSettings(false)}
+              onClick={() => {
+                setShowSettings(false);
+                // Trigger page refresh to reload data
+                if (user?.id) {
+                  loadProjects(user.id, true);
+                  loadCollaborations(user.id, true);
+                  if (activeProjectId) {
+                    fetchProjectCollaborators(activeProjectId);
+                  }
+                }
+              }}
               className="flex items-center gap-2 text-zinc-400 hover:text-white transition-all duration-200 hover:scale-105"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -8554,8 +8602,51 @@ export default function Home() {
         onWidthChange={setCollaboratorsSidebarWidth}
         onAddCollaborator={() => setShowAddUserModal(true)}
         onRemoveCollaborator={async (userId) => {
-          // TODO: Implement remove collaborator
-          console.log('Remove collaborator:', userId)
+          if (!activeProjectId || !user) return
+          
+          try {
+            // Find the collaborator to get their name
+            const collaborator = projectCollaborators.find(c => c.userId === userId)
+            const userName = collaborator?.userName || 'User'
+            
+            // Optimistically remove from UI
+            setProjectCollaborators(prev => prev.filter(c => c.userId !== userId))
+            
+            // Call API to remove collaborator
+            const headers = await getAuthHeaders()
+            const response = await fetch(`${backendUrl}/api/projects/${activeProjectId}/collaborators/${userId}`, {
+              method: 'DELETE',
+              headers
+            })
+            
+            if (!response.ok) {
+              const error = await response.text()
+              throw new Error(error)
+            }
+            
+            addToast({
+              id: generateToastId(),
+              type: 'success',
+              message: `${userName} removed from project`,
+              duration: 3000
+            })
+            
+            // Refresh collaborators list to ensure consistency
+            await fetchProjectCollaborators(activeProjectId)
+            
+          } catch (error) {
+            console.error('Failed to remove collaborator:', error)
+            addToast({
+              id: generateToastId(),
+              type: 'error',
+              message: 'Failed to remove collaborator',
+              duration: 3000
+            })
+            // Refresh to restore correct state
+            if (activeProjectId) {
+              await fetchProjectCollaborators(activeProjectId)
+            }
+          }
         }}
         onToggleVisibility={async (userId) => {
           if (!activeProjectId || !user) return
@@ -8574,7 +8665,7 @@ export default function Home() {
             
             // Call API to update visibility
             const headers = await getAuthHeaders()
-            const response = await fetch(`${backendUrl}/api/collaborations/projects/${activeProjectId}/collaborators/${userId}/visibility`, {
+            const response = await fetch(`${backendUrl}/api/projects/${activeProjectId}/collaborators/${userId}/visibility`, {
               method: 'PATCH',
               headers,
               body: JSON.stringify({
@@ -8615,7 +8706,7 @@ export default function Home() {
             
             // Call API to update all visibility
             const headers = await getAuthHeaders()
-            const response = await fetch(`${backendUrl}/api/collaborations/projects/${activeProjectId}/collaborators/visibility/all`, {
+            const response = await fetch(`${backendUrl}/api/projects/${activeProjectId}/collaborators/visibility/all`, {
               method: 'PATCH',
               headers,
               body: JSON.stringify({
@@ -8665,7 +8756,7 @@ export default function Home() {
           try {
             console.log('Adding user:', usernameOrEmail)
             const headers = await getAuthHeaders()
-            const response = await fetch(`${backendUrl}/api/collaborations/projects/${activeProjectId}/collaborators`, {
+            const response = await fetch(`${backendUrl}/api/projects/${activeProjectId}/collaborators`, {
               method: 'POST',
               headers,
               body: JSON.stringify({
@@ -8690,8 +8781,11 @@ export default function Home() {
             
             console.log('✅ User added successfully:', data.user)
             
-            // Fetch updated collaborators list
-            fetchProjectCollaborators(activeProjectId)
+            // Close the modal
+            setShowAddUserModal(false)
+            
+            // Immediately fetch updated collaborators list
+            await fetchProjectCollaborators(activeProjectId)
             
             // Show success toast
             addToast({

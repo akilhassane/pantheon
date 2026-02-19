@@ -21,10 +21,7 @@ Edit `.env`:
 
 ```env
 # For local testing (backend running locally)
-BACKEND_URL=ws://localhost:3003
-
-# For production (Railway backend)
-# BACKEND_URL=wss://pantheon-production-ad27.up.railway.app
+BACKEND_URL=ws://localhost:3002
 
 # Your Supabase user ID (optional)
 USER_ID=your-user-id-here
@@ -140,12 +137,10 @@ You should see the nginx welcome page!
 
 ## Production Deployment
 
-### Connect to Railway Backend
-
-Update `.env`:
+Update `.env` with your production backend URL:
 
 ```env
-BACKEND_URL=wss://pantheon-production-ad27.up.railway.app
+BACKEND_URL=wss://your-backend-url.com
 USER_ID=your-supabase-user-id
 ```
 
@@ -155,7 +150,7 @@ Restart agent:
 node agent.js
 ```
 
-The agent will now connect to your Railway backend and receive commands from the web UI!
+The agent will now connect to your backend and receive commands from the web UI!
 
 ## Troubleshooting
 
@@ -166,7 +161,7 @@ The agent will now connect to your Railway backend and receive commands from the
 **Solution:**
 - Make sure backend is running (`cd backend && npm start`)
 - Check BACKEND_URL in `.env`
-- For Railway, use `wss://` not `ws://`
+- For production, use `wss://` not `ws://`
 
 ### Docker Commands Fail
 
@@ -233,8 +228,8 @@ The agent will now connect to your Railway backend and receive commands from the
                  │ HTTPS API
                  │
 ┌────────────────▼────────────────────────┐
-│  Backend (Railway)                      │
-│  https://pantheon-production-ad27...    │
+│  Backend Server                         │
+│  http://localhost:3002                  │
 │                                         │
 │  • Receives API calls from frontend    │
 │  • Sends commands via WebSocket        │
@@ -245,7 +240,7 @@ The agent will now connect to your Railway backend and receive commands from the
 │  Client Agent (Your Machine)            │
 │  node agent.js                          │
 │                                         │
-│  • Connects to Railway backend         │
+│  • Connects to backend server          │
 │  • Receives container commands         │
 │  • Executes via Docker API             │
 └────────────────┬────────────────────────┘

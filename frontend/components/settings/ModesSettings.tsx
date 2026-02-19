@@ -86,13 +86,26 @@ export function ModesSettings() {
     // Load settings to get default mode
     const loaded = SettingsManager.load()
     setSettings(loaded)
+    
+    // Listen for storage changes to reload modes in real-time
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'app-settings') {
+        console.log('🔄 [ModesSettings] Settings changed, reloading...')
+        const reloaded = SettingsManager.load()
+        setSettings(reloaded)
+        loadCustomModes()
+      }
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const loadCustomModes = async () => {
     try {
       setIsLoading(true)
       
-      // Get current user
+      // Get current user (only for authentication, not for database access)
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
@@ -108,20 +121,17 @@ export function ModesSettings() {
         return
       }
 
-      // Fetch custom modes from Supabase
-      const { data, error } = await supabase
-        .from('custom_modes')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error loading custom modes:', error)
-        throw error
+      // Fetch custom modes from backend API (local database)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/custom-modes?userId=${user.id}`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load custom modes: ${response.statusText}`)
       }
 
-      // Transform Supabase data to match our interface
-      const modes: CustomMode[] = (data || []).map(mode => ({
+      const { modes: data } = await response.json()
+
+      // Transform backend data to match our interface
+      const modes: CustomMode[] = (data || []).map((mode: any) => ({
         id: mode.id,
         name: mode.name,
         description: mode.description || '',
@@ -135,7 +145,6 @@ export function ModesSettings() {
       setCustomModes(modes)
       
       // Also sync to localStorage for offline access
-      const loaded = SettingsManager.load()
       SettingsManager.update('customModes', modes)
       
       if (modes.length > 0 && !selectedModeId) {
@@ -157,7 +166,7 @@ export function ModesSettings() {
     try {
       setIsSaving(true)
       
-      // Get current user
+      // Get current user (only for authentication)
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
@@ -183,22 +192,25 @@ export function ModesSettings() {
         return
       }
 
-      // Create in Supabase
-      const { data, error } = await supabase
-        .from('custom_modes')
-        .insert({
-          user_id: user.id,
+      // Create via backend API (local database)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/custom-modes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: user.id,
           name: 'New Mode',
           description: '',
-          system_prompt: ''
+          systemPrompt: ''
         })
-        .select()
-        .single()
+      })
 
-      if (error) {
-        console.error('Error creating mode:', error)
-        throw error
+      if (!response.ok) {
+        throw new Error(`Failed to create mode: ${response.statusText}`)
       }
+
+      const { mode: data } = await response.json()
 
       // Transform and add to local state
       const newMode: CustomMode = {
@@ -249,7 +261,7 @@ export function ModesSettings() {
     try {
       setIsSaving(true)
       
-      // Get current user
+      // Get current user (only for authentication)
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
@@ -273,21 +285,22 @@ export function ModesSettings() {
         return
       }
 
-      // Update in Supabase
-      const { error } = await supabase
-        .from('custom_modes')
-        .update({
+      // Update via backend API (local database)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/custom-modes/${selectedModeId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: user.id,
           name: editForm.name.trim(),
           description: editForm.description.trim(),
-          system_prompt: editForm.systemPrompt.trim(),
-          updated_at: new Date().toISOString()
+          systemPrompt: editForm.systemPrompt.trim()
         })
-        .eq('id', selectedModeId)
-        .eq('user_id', user.id)
+      })
 
-      if (error) {
-        console.error('Error updating mode:', error)
-        throw error
+      if (!response.ok) {
+        throw new Error(`Failed to update mode: ${response.statusText}`)
       }
 
       // Update local state
@@ -324,14 +337,11 @@ export function ModesSettings() {
   }
 
   const handleDeleteMode = async (modeId: string) => {
-    if (!confirm('Are you sure you want to delete this mode?')) {
-      return
-    }
 
     try {
       setIsSaving(true)
       
-      // Get current user
+      // Get current user (only for authentication)
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
@@ -346,16 +356,13 @@ export function ModesSettings() {
         return
       }
 
-      // Delete from Supabase
-      const { error } = await supabase
-        .from('custom_modes')
-        .delete()
-        .eq('id', modeId)
-        .eq('user_id', user.id)
+      // Delete via backend API (local database)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/custom-modes/${modeId}?userId=${user.id}`, {
+        method: 'DELETE'
+      })
 
-      if (error) {
-        console.error('Error deleting mode:', error)
-        throw error
+      if (!response.ok) {
+        throw new Error(`Failed to delete mode: ${response.statusText}`)
       }
 
       // Update local state

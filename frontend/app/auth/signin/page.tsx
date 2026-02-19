@@ -31,13 +31,16 @@ export default function SignInPage() {
     checkAuth()
   }, [router])
 
-  const handleSignIn = async (provider: 'google' | 'azure') => {
+  const handleSignIn = async (provider: 'google' | 'azure' | 'microsoft') => {
     setIsLoading(provider)
     setError(null)
 
     try {
+      // Map azure to microsoft for hybrid auth
+      const authProvider = provider === 'azure' ? 'microsoft' : provider;
+      
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: provider,
+        provider: provider as any,
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
           scopes: provider === 'azure' ? 'email openid profile' : undefined

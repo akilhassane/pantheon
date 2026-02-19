@@ -7,6 +7,7 @@
  */
 
 const crypto = require('crypto');
+const { retryQuery } = require('./config/supabase-client');
 
 // UUID v4 generator (compatible with CommonJS)
 function uuidv4() {
@@ -295,6 +296,7 @@ class EnhancedSessionManager {
    * @returns {Promise<Array>} List of deleted sessions
    */
   async getDeletedSessionsByProject(projectId) {
+    // Query sessions where deleted_at IS NOT NULL
     const { data, error } = await this.supabase
       .from('sessions')
       .select('*')
@@ -303,8 +305,11 @@ class EnhancedSessionManager {
       .order('deleted_at', { ascending: false });
     
     if (error) {
+      console.error('[EnhancedSessionManager] ❌ Query error:', error);
       throw new Error(`Failed to get deleted sessions: ${error.message}`);
     }
+    
+    console.log(`[EnhancedSessionManager] ✅ Found ${data?.length || 0} deleted sessions`);
     
     return (data || []).map(session => ({
       ...session,
@@ -375,9 +380,21 @@ class EnhancedSessionManager {
         metadata: JSON.stringify(messageObject) // Store ENTIRE object
       };
       
-      const { error } = await this.supabase
-        .from('chat_messages')
-        .insert([messageData]);
+      // Use retry logic for database insert
+      const { error } = await retryQuery(
+        async () => {
+          return await this.supabase
+            .from('chat_messages')
+            .insert([messageData]);
+        },
+        {
+          maxRetries: 2,
+          initialDelay: 1000,
+          onRetry: (attempt, maxRetries, delay, error) => {
+            console.log(`[EnhancedSessionManager] ⏳ Message save attempt ${attempt}/${maxRetries} failed (${error.message}), retrying in ${delay}ms...`);
+          }
+        }
+      );
       
       if (error) {
         console.error('[EnhancedSessionManager] Failed to save complete message:', error.message);

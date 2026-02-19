@@ -276,6 +276,17 @@ export function ModelSettings({ isVisible = true }: ModelSettingsProps) {
     }
     
     loadSettings()
+    
+    // Listen for storage changes to reload settings in real-time
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'app-settings') {
+        console.log('🔄 [ModelSettings] Settings changed, reloading...')
+        loadSettings()
+      }
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   useEffect(() => {

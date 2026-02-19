@@ -77,8 +77,16 @@ export function AddUserToCollabModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
-      <div className="bg-[#1a1b26] border border-gray-700 rounded-lg p-6 w-full max-w-md shadow-2xl relative z-[10000]">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]"
+      onClick={(e) => {
+        // Close modal when clicking backdrop (but not when clicking the modal itself)
+        if (e.target === e.currentTarget) {
+          handleClose()
+        }
+      }}
+    >
+      <div className="rounded-lg p-6 w-full max-w-md shadow-2xl relative z-[10000]" style={{ backgroundColor: '#0A0A0A', borderColor: '#27272A', borderWidth: '1px' }}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-semibold text-white">Add Collaborator</h2>
@@ -118,7 +126,7 @@ export function AddUserToCollabModal({
                     setError(null)
                   }}
                   placeholder="username or email@example.com"
-                  className="pl-10 bg-[#252529] border-gray-700 text-white placeholder-gray-500 focus:border-blue-500"
+                  className="pl-10 bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-white focus:ring-2 focus:ring-white"
                   disabled={loading}
                   autoFocus
                   onKeyPress={(e) => e.key === 'Enter' && !loading && handleAdd()}
@@ -133,7 +141,7 @@ export function AddUserToCollabModal({
               )}
 
               {usernameOrEmail && !error && (
-                <div className="mt-2 flex items-center gap-2 text-blue-400 text-sm">
+                <div className="mt-2 flex items-center gap-2 text-gray-400 text-sm">
                   <CheckCircle className="h-4 w-4" />
                   <span>
                     {isEmail(usernameOrEmail) ? 'Valid email format' : 'Username entered'}
@@ -142,9 +150,9 @@ export function AddUserToCollabModal({
               )}
             </div>
 
-            <div className="p-3 bg-blue-900/20 border border-blue-800 rounded-md">
-              <p className="text-xs text-blue-300">
-                <strong>Note:</strong> The user will be notified and can accept or decline the invitation.
+            <div className="p-3 bg-gray-800 border border-gray-700 rounded-md">
+              <p className="text-xs text-gray-400">
+                <strong className="text-white">Note:</strong> The user will be notified and can accept or decline the invitation.
                 They will have read-only access by default.
               </p>
             </div>
@@ -161,7 +169,7 @@ export function AddUserToCollabModal({
               <Button
                 onClick={handleAdd}
                 disabled={loading || !usernameOrEmail.trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-white hover:bg-gray-200 text-black"
               >
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {loading ? 'Adding...' : 'Add User'}

@@ -83,7 +83,15 @@ export function AddCollaborationModal({ isOpen, onClose, onJoinProject }: AddCol
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]"
+      onClick={(e) => {
+        // Close modal when clicking backdrop (but not when clicking the modal itself)
+        if (e.target === e.currentTarget && !loading) {
+          handleClose()
+        }
+      }}
+    >
       <div className="rounded-lg p-6 w-full max-w-md relative z-[10000]" style={{ backgroundColor: '#0A0A0A', borderColor: '#27272A', borderWidth: '1px' }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Join Collaboration</h2>
@@ -142,9 +150,9 @@ export function AddCollaborationModal({ isOpen, onClose, onJoinProject }: AddCol
               )}
             </div>
 
-            <div className="p-3 bg-blue-900/20 border border-blue-800 rounded-md">
-              <p className="text-xs text-blue-300">
-                <strong>Tip:</strong> Ask the project owner to share their Project ID with you. 
+            <div className="p-3 bg-gray-800 border border-gray-700 rounded-md">
+              <p className="text-xs text-gray-400">
+                <strong className="text-white">Tip:</strong> Ask the project owner to share their Project ID with you. 
                 You can find it in the Share Project dialog.
               </p>
             </div>

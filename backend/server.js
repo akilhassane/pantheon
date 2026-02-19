@@ -18,6 +18,27 @@ const { setupSessionRoutes } = require('./session-routes');
 const { trackUsage, calculateCost } = require('./usage-tracking');
 const streamHealthMonitor = require('./streaming-health-monitor');
 
+// Helper function for fetch with timeout
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
+}
+
 // Helper function for HTTP requests
 function httpRequest(url, options = {}) {
   return new Promise((resolve, reject) => {
@@ -55,8 +76,29 @@ function httpRequest(url, options = {}) {
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increase limit for screenshot data
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '100mb' })); // Increase limit for screenshot data and conversation history
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Custom error handler for payload too large errors
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`🔄 413 PAYLOAD TOO LARGE - Creating new session`);
+    console.log(`   Request size exceeded limit`);
+    console.log(`   Will create new session and continue`);
+    console.log(`${'='.repeat(80)}\n`);
+    
+    return res.status(413).json({
+      error: 'session_too_large',
+      message: 'Session history too large. Creating new session...',
+      createNewSession: true
+    });
+  }
+  next(err);
+});
+
+// Track stop requests by session ID
+const stopRequests = new Map(); // sessionId -> timestamp
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -67,6 +109,10 @@ const wss = new WebSocket.Server({ server });
 // Initialize Collaboration WebSocket Handler
 const CollaborationWebSocketHandler = require('./collaboration-websocket');
 const collaborationWS = new CollaborationWebSocketHandler(wss);
+
+// Initialize Global WebSocket Handler
+const GlobalWebSocketHandler = require('./global-websocket');
+const globalWS = new GlobalWebSocketHandler(wss);
 
 // Initialize Agent WebSocket Handler
 const AgentWebSocketHandler = require('./agent-websocket-handler');
@@ -82,6 +128,7 @@ wss.on('connection', (ws, req) => {
   const projectId = url.searchParams.get('projectId');
   const agentId = url.searchParams.get('agentId');
   const isAgent = url.searchParams.get('type') === 'agent';
+  const isGlobal = url.pathname === '/global';
 
   // If this is an agent connection
   if (isAgent && agentId) {
@@ -96,6 +143,13 @@ wss.on('connection', (ws, req) => {
     };
     
     agentWS.registerAgent(ws, agentId, metadata);
+    return;
+  }
+
+  // If this is a global connection (user-level, not project-specific)
+  if (isGlobal && userId && userName) {
+    console.log(`🌐 Global WebSocket connected: ${userName} (${userId})`);
+    globalWS.registerClient(ws, userId, decodeURIComponent(userName));
     return;
   }
 
@@ -313,16 +367,22 @@ const projectManager = new ProjectManager(supabase, {
 });
 
 // Restore shared folder containers for Windows projects on startup
+// This runs in the background and doesn't block server startup
 (async () => {
   try {
+    console.log('[Server] 🔄 Starting background initialization (database queries)...');
+    console.log('[Server] ℹ️  If database is sleeping, this may take 1-2 minutes to complete');
+    
     await projectManager.restoreHttpServersOnStartup();
     console.log('[Server] ✅ Shared folder containers restored for Windows projects');
     
     // Start health monitoring for existing projects
     await projectManager.startHealthMonitoringForExistingProjects();
     console.log('[Server] ✅ Health monitoring started for existing projects');
+    console.log('[Server] ✅ Background initialization complete');
   } catch (err) {
-    console.error('[Server] Failed to restore shared folder containers:', err.message);
+    console.error('[Server] ⚠️  Background initialization failed:', err.message);
+    console.error('[Server] ℹ️  This is normal if the database is waking up. Queries will retry automatically.');
   }
 })();
 
@@ -345,9 +405,210 @@ console.log('✅ Session management routes initialized');
 
 // Setup collaboration routes
 const { setupCollaborationRoutes } = require('./collaboration-routes');
-const collaborationRoutes = setupCollaborationRoutes(collaborationManager, sessionManager, collaborationWS);
-app.use('/api/collaborations', collaborationRoutes);
+const collaborationRoutes = setupCollaborationRoutes(collaborationManager, sessionManager, collaborationWS, globalWS);
+app.use('/api', collaborationRoutes);
 console.log('✅ Collaboration routes initialized');
+
+// Setup custom modes routes
+app.get('/api/custom-modes', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({
+        error: 'USER_ID_REQUIRED',
+        message: 'userId query parameter is required'
+      });
+    }
+    
+    const { data, error } = await supabase
+      .from('custom_modes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      throw new Error(`Failed to get custom modes: ${error.message}`);
+    }
+    
+    res.json({
+      success: true,
+      modes: data || [],
+      count: data?.length || 0
+    });
+  } catch (error) {
+    console.error('[CustomModes] ❌ Failed to get custom modes:', error.message);
+    res.status(500).json({
+      error: 'GET_CUSTOM_MODES_FAILED',
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/custom-modes', async (req, res) => {
+  try {
+    const { userId, name, description, systemPrompt } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        error: 'USER_ID_REQUIRED',
+        message: 'userId is required'
+      });
+    }
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        error: 'NAME_REQUIRED',
+        message: 'name is required'
+      });
+    }
+    
+    const { data, error } = await supabase
+      .from('custom_modes')
+      .insert({
+        user_id: userId,
+        name: name.trim(),
+        description: description?.trim() || '',
+        system_prompt: systemPrompt?.trim() || ''
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Failed to create custom mode: ${error.message}`);
+    }
+    
+    // Broadcast to all connected clients that custom modes were updated
+    if (collaborationWS) {
+      collaborationWS.wss.clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify({
+            type: 'custom-modes-updated'
+          }));
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      mode: data
+    });
+  } catch (error) {
+    console.error('[CustomModes] ❌ Failed to create custom mode:', error.message);
+    res.status(500).json({
+      error: 'CREATE_CUSTOM_MODE_FAILED',
+      message: error.message
+    });
+  }
+});
+
+app.put('/api/custom-modes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, name, description, systemPrompt } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        error: 'USER_ID_REQUIRED',
+        message: 'userId is required'
+      });
+    }
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        error: 'NAME_REQUIRED',
+        message: 'name is required'
+      });
+    }
+    
+    const { data, error } = await supabase
+      .from('custom_modes')
+      .update({
+        name: name.trim(),
+        description: description?.trim() || '',
+        system_prompt: systemPrompt?.trim() || '',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Failed to update custom mode: ${error.message}`);
+    }
+    
+    // Broadcast to all connected clients that custom modes were updated
+    if (collaborationWS) {
+      collaborationWS.wss.clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify({
+            type: 'custom-modes-updated'
+          }));
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      mode: data
+    });
+  } catch (error) {
+    console.error('[CustomModes] ❌ Failed to update custom mode:', error.message);
+    res.status(500).json({
+      error: 'UPDATE_CUSTOM_MODE_FAILED',
+      message: error.message
+    });
+  }
+});
+
+app.delete('/api/custom-modes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({
+        error: 'USER_ID_REQUIRED',
+        message: 'userId query parameter is required'
+      });
+    }
+    
+    const { error } = await supabase
+      .from('custom_modes')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+    
+    if (error) {
+      throw new Error(`Failed to delete custom mode: ${error.message}`);
+    }
+    
+    // Broadcast to all connected clients that custom modes were updated
+    if (collaborationWS) {
+      collaborationWS.wss.clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify({
+            type: 'custom-modes-updated'
+          }));
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Custom mode deleted successfully'
+    });
+  } catch (error) {
+    console.error('[CustomModes] ❌ Failed to delete custom mode:', error.message);
+    res.status(500).json({
+      error: 'DELETE_CUSTOM_MODE_FAILED',
+      message: error.message
+    });
+  }
+});
+
+console.log('✅ Custom modes routes initialized (GET, POST, PUT, DELETE)');
 
 // Setup usage tracking routes
 const usageRoutes = require('./usage-routes');
@@ -360,8 +621,24 @@ const agentRoutes = setupAgentRoutes(agentWS);
 app.use('/api/agents', agentRoutes);
 console.log('✅ Agent management routes initialized');
 
-// Setup tunnel proxy routes
-const tunnelProxy = require('./tunnel-proxy');
+// Setup authentication routes (supports both Supabase and Keycloak)
+const { setupAuthRoutes } = require('./auth-routes-keycloak');
+const { createKeycloakAuth } = require('./keycloak-auth');
+
+// Initialize Keycloak auth if configured
+const keycloakAuth = createKeycloakAuth();
+if (keycloakAuth) {
+  console.log('✅ Keycloak authentication enabled');
+} else {
+  console.log('ℹ️  Using Supabase authentication only');
+}
+
+const authRoutes = setupAuthRoutes(supabase, keycloakAuth);
+app.use('/api/auth', authRoutes);
+console.log('✅ Authentication routes initialized');
+
+// Setup tunnel proxy routes - DISABLED (module not found)
+// const tunnelProxy = require('./tunnel-proxy');
 const path = require('path');
 
 // Serve fixed terminal HTML that uses correct WebSocket URL for Cloudflare
@@ -369,8 +646,8 @@ app.get('/api/proxy/:projectId/terminal-fixed.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'terminal-fixed.html'));
 });
 
-app.use('/api/proxy', tunnelProxy);
-console.log('✅ Tunnel proxy routes initialized');
+// app.use('/api/proxy', tunnelProxy); // DISABLED - module not found
+// console.log('✅ Tunnel proxy routes initialized');
 
 // Integrate agentWS with project manager for remote container operations
 projectManager.setAgentHandler(agentWS);
@@ -1142,13 +1419,41 @@ function getProviderFromModel(model) {
   return 'openrouter';
 }
 
+// Stop endpoint - allows frontend to stop ongoing workflows
+app.post('/api/chat/stop', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+    
+    console.log(`🛑 Stop request received for session: ${sessionId}`);
+    stopRequests.set(sessionId, Date.now());
+    
+    // Auto-clear after 5 minutes
+    setTimeout(() => {
+      stopRequests.delete(sessionId);
+    }, 300000);
+    
+    res.json({ success: true, message: 'Stop request registered' });
+  } catch (error) {
+    console.error('❌ Stop request error:', error);
+    res.status(500).json({ error: 'Failed to process stop request' });
+  }
+});
+
 // Chat endpoint with multi-provider support
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history = [], model: requestedModel = 'gemini-2.5-flash', apiKey, userId, sessionId } = req.body;
+    const { message, history = [], model: requestedModel, apiKey, userId, sessionId } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
+    }
+    
+    if (!requestedModel) {
+      return res.status(400).json({ error: 'Model selection is required' });
     }
 
     console.log(`🤖 Using model: ${requestedModel}`);
@@ -1172,10 +1477,16 @@ app.post('/api/chat', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Chat error:', error);
-    res.status(500).json({
-      error: 'Failed to process message',
-      details: error.message
-    });
+    // Check if headers were already sent (e.g., during streaming)
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Failed to process message',
+        details: error.message
+      });
+    } else {
+      // Headers already sent, just log the error
+      console.error('   Error occurred after headers were sent - cannot send error response');
+    }
   }
 });
 
@@ -1185,14 +1496,145 @@ app.post('/api/chat', async (req, res) => {
 async function handleOpenRouterChat(req, res, message, history, model) {
   try {
     const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+    const sessionId = req.body.sessionId; // Get session ID from request
     
     if (!openrouterApiKey) {
       throw new Error('OpenRouter API key not configured');
     }
 
+    // Helper function to parse tool signature (handles base64 encoded args)
+    const parseToolSignature = (sig) => {
+      try {
+        const [tool, argsBase64] = sig.split(':');
+        const argsJson = Buffer.from(argsBase64, 'base64').toString('utf-8');
+        const parsedArgs = JSON.parse(argsJson);
+        return { tool, args: parsedArgs };
+      } catch (e) {
+        console.error(`❌ Failed to parse tool call history: "${sig}" ${e.message}`);
+        return { tool: 'unknown', args: {} };
+      }
+    };
+
     // Extract mode, projectId, and customModeId from request body
     const { mode = 'terminal', projectId, customModeId } = req.body;
     console.log(`🎯 Mode: ${mode}, Project ID: ${projectId}, Custom Mode ID: ${customModeId || 'none'}`);
+
+    // Detect if this is a conversational message (no desktop interaction needed)
+    const conversationalPatterns = [
+      /^(hi|hello|hey|greetings|good morning|good afternoon|good evening)[\s!.]*$/i,
+      /^(how are you|what's up|wassup|sup)[\s!?.]*$/i,
+      /^(thanks|thank you|thx|ty)[\s!.]*$/i,
+      /^(bye|goodbye|see you|cya)[\s!.]*$/i,
+      /^(what can you do|help|what are your capabilities)[\s!?.]*$/i,
+      /^(ok|okay|cool|nice|great|awesome|good job)[\s!.]*$/i
+    ];
+    
+    const isConversational = conversationalPatterns.some(pattern => pattern.test(message.trim()));
+    
+    if (isConversational && (mode === 'desktop' || mode === 'windows')) {
+      console.log('💬 Detected conversational message, using simple response mode');
+      
+      try {
+        // Use a simple conversational prompt instead of the complex desktop prompt
+        const conversationalPrompt = `You are a friendly, general-purpose AI assistant having a casual conversation.
+
+CRITICAL RULES:
+1. DO NOT mention "Windows desktop", "desktop control", "desktop tasks", or any technical capabilities
+2. DO NOT offer to help with computer tasks, screenshots, or system operations
+3. Respond ONLY as a conversational assistant
+4. Keep responses SHORT and NATURAL
+
+For "hello" or similar greetings, respond with ONLY:
+- "Hello! How can I help you today?"
+- "Hi there! What can I assist you with?"
+- "Hey! What's up?"
+
+DO NOT add anything about desktop, Windows, or technical tasks. Just be friendly and conversational.`;
+        
+        // Build messages for OpenRouter
+        const messages = [
+          { role: 'system', content: conversationalPrompt },
+          ...history.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          { role: 'user', content: message }
+        ];
+
+        console.log('📤 Sending conversational request to OpenRouter...');
+        
+        // Make simple API call WITH streaming
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openrouterApiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost:3000',
+            'X-Title': 'AI Desktop Assistant'
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: messages,
+            stream: true  // Enable streaming
+          })
+        });
+
+        console.log('📥 Received response from OpenRouter:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ OpenRouter API error:', response.status, errorText);
+          throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
+        }
+
+        // Set up streaming response
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                res.write(`0:${JSON.stringify({ type: 'finish', finishReason: 'stop' })}\n`);
+                if (res.flush) res.flush();
+                continue;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: content })}\n`);
+                  if (res.flush) res.flush();
+                }
+              } catch (e) {
+                // Skip invalid JSON
+              }
+            }
+          }
+        }
+
+        res.end();
+        console.log('✅ Conversational response streamed successfully');
+        return;
+      } catch (error) {
+        console.error('❌ Error in conversational response:', error);
+        // Fall through to normal desktop workflow if conversational fails
+      }
+    }
 
     // Get project details to determine OS
     let operatingSystem = 'kali-linux'; // Default
@@ -1302,21 +1744,63 @@ END OF CUSTOM MODE
       }
     }
 
+    // Handle session context: summarize previous interaction if history exists
+    let processedHistory = [];
+    if (history && history.length > 0) {
+      console.log(`📚 Session has ${history.length} previous messages`);
+      
+      // Extract the last complete interaction (last user message + assistant response)
+      const lastUserMsgIndex = history.map((msg, idx) => msg.role === 'user' ? idx : -1).filter(idx => idx !== -1).pop();
+      
+      if (lastUserMsgIndex !== undefined && lastUserMsgIndex >= 0) {
+        const lastUserMsg = history[lastUserMsgIndex];
+        const lastAssistantMsgs = history.slice(lastUserMsgIndex + 1).filter(msg => msg.role === 'assistant');
+        const lastAssistantMsg = lastAssistantMsgs.length > 0 ? lastAssistantMsgs[lastAssistantMsgs.length - 1] : null;
+        
+        if (lastUserMsg && lastAssistantMsg) {
+          // Create a brief summary (max 100 tokens ≈ 400 characters)
+          const userRequest = lastUserMsg.content.substring(0, 150);
+          const assistantResponse = lastAssistantMsg.content.substring(0, 150);
+          
+          const summary = `Previous interaction: User requested "${userRequest}${lastUserMsg.content.length > 150 ? '...' : ''}". Task completed: "${assistantResponse}${lastAssistantMsg.content.length > 150 ? '...' : ''}".`;
+          
+          console.log(`📝 Created summary: ${summary.substring(0, 100)}...`);
+          console.log(`📊 Summary length: ~${Math.ceil(summary.length / 4)} tokens (target: 100)`);
+          
+          // Replace entire history with just the summary
+          processedHistory = [{
+            role: 'system',
+            content: `Context from previous interaction in this session:\n${summary}`
+          }];
+        } else {
+          console.log(`⚠️  Could not extract complete interaction, starting fresh`);
+        }
+      } else {
+        console.log(`⚠️  No user messages in history, starting fresh`);
+      }
+    } else {
+      console.log(`📭 No previous history, starting fresh session`);
+    }
+
+    // Check if this is a screenshot-only request
+    const isScreenshotOnly = /^(take|get|show|capture)\s+(a\s+)?screenshot$/i.test(message.trim());
+    
     // Build messages array with system prompt
     const messages = [
       {
         role: 'system',
         content: modeSystemPrompt
       },
-      ...history.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
+      ...processedHistory,
       {
         role: 'user',
-        content: message
+        content: isScreenshotOnly ? `${message}\n\nIMPORTANT: Just take ONE screenshot, describe what you see, then say "Done". Do NOT perform any other actions.` : message
       }
     ];
+
+    if (isScreenshotOnly) {
+      console.log(`📸 Detected screenshot-only request, adding explicit instruction to stop after description`);
+    }
 
     console.log(`📤 Sending request to OpenRouter with ${messages.length} messages...`);
     if (tools) {
@@ -1372,22 +1856,120 @@ END OF CUSTOM MODE
       console.log(`🔧 Added ${tools.length} tools to request (parallel_tool_calls: false, no tool_choice)`);
     }
 
-    // Call OpenRouter API with streaming enabled
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openrouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'Kali AI Assistant'
-      },
-      body: JSON.stringify(requestBody)
+    // Create abort controller for cancelling API calls
+    const abortController = new AbortController();
+    let isUserCancellation = false; // Track if this is a user-initiated cancellation
+    
+    // Listen for client disconnect to abort API calls immediately
+    res.on('close', () => {
+      // Only abort if the response is being closed while we're still processing
+      // (not during error handling)
+      if (!res.writableEnded) {
+        console.log('🛑 Client disconnected - aborting API calls');
+        isUserCancellation = true;
+        abortController.abort();
+      }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ OpenRouter API error: ${response.status}`, errorText);
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
+    // Call OpenRouter API with streaming enabled (with infinite retry for network issues)
+    let response;
+    let retryCount = 0;
+    
+    // Infinite retry loop - only stops when AI says "Done" or request succeeds
+    let retryRequest = true;
+    while (retryRequest) {
+      retryRequest = false; // Will be set to true if we need to retry
+      
+      while (true) {
+        try {
+          response = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openrouterApiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'http://localhost:3000',
+              'X-Title': 'Kali AI Assistant'
+            },
+            body: JSON.stringify(requestBody),
+            signal: abortController.signal // Use our abort controller
+          });
+          break; // Success, exit retry loop
+        } catch (fetchError) {
+          // Check if it's an abort (user cancelled)
+          if (fetchError.name === 'AbortError') {
+            console.log('🛑 API call aborted by user disconnect');
+            throw fetchError; // Throw to exit and save messages
+          }
+          
+          // Check if it's a network error (DNS, timeout, connection)
+          const isNetworkError = 
+            fetchError.cause?.code === 'EAI_AGAIN' || 
+            fetchError.cause?.code === 'ETIMEDOUT' ||
+            fetchError.cause?.code === 'ECONNRESET' ||
+            fetchError.cause?.code === 'ENOTFOUND' ||
+            fetchError.message?.includes('Request timeout');
+          
+          if (isNetworkError) {
+            retryCount++;
+            // Exponential backoff with max 30 seconds
+            const delay = Math.min(1000 * Math.pow(2, Math.min(retryCount - 1, 5)), 30000);
+            console.warn(`⚠️  Network error (${fetchError.cause?.code || fetchError.message}), retrying in ${delay}ms (attempt ${retryCount})...`);
+            
+            // Send status update to user
+            if (retryCount % 3 === 0) { // Every 3rd retry
+              const statusMessage = `\n\nNetwork issue - retrying connection (attempt ${retryCount})...\n`;
+              res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: statusMessage })}\n`);
+              if (res.flush) res.flush();
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue; // Retry indefinitely
+          }
+          
+          // Not a network error - throw it
+          console.error(`❌ Non-network error:`, fetchError.message);
+          throw fetchError;
+        }
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ OpenRouter API error: ${response.status}`, errorText);
+        
+        // Handle 413 Payload Too Large - context is too big
+        if (response.status === 413) {
+          console.log(`\n${'='.repeat(80)}`);
+          console.log(`🔄 413 ERROR - REQUEST TOO LARGE`);
+          console.log(`   Context size exceeded API limit`);
+          console.log(`   Resetting context and retrying with fresh state`);
+          console.log(`${'='.repeat(80)}\n`);
+          
+          // Reset messages to minimal state
+          messages.length = 0;
+          messages.push({
+            role: 'system',
+            content: modeSystemPrompt
+          });
+          messages.push({
+            role: 'user',
+            content: `${history[0]?.content || message}\n\nContext was reset due to size limit. Take a screenshot and continue.`
+          });
+          
+          // Reset context tracking
+          contextTokenCount = estimateTokens(JSON.stringify(messages));
+          
+          // Notify user
+          const resetMessage = `\n\nContext size exceeded limit. Resetting and continuing...\n`;
+          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+          if (res.flush) res.flush();
+          
+          // Retry with reset context
+          retryRequest = true;
+          continue;
+        }
+        
+        throw new Error(`OpenRouter API error: ${response.statusText}`);
+      }
     }
 
     console.log('✅ OpenRouter streaming connection established');
@@ -1439,14 +2021,46 @@ END OF CUSTOM MODE
               // Handle text content
               if (delta?.content) {
                 totalChars += delta.content.length;
-                initialText += delta.content; // Capture the text
-                console.log(`📝 AI Initial Text: "${delta.content}"`);
                 
-                // Stream the content immediately
-                res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: delta.content })}\n`);
+                // 🚨 CRITICAL: Filter out malformed <tool_call> tags in real-time
+                // Filter both opening tags, closing tags, and any JSON-like content between them
+                let contentToStream = delta.content;
                 
-                if (totalChars % 100 === 0) {
-                  console.log(`📝 Streamed ${totalChars} characters so far...`);
+                // Remove tool_call tags and their content
+                // This handles: <tool_call>, </tool_call>, and JSON content like {"name": "...", "arguments":
+                contentToStream = contentToStream
+                  .replace(/<tool_call>/gi, '')
+                  .replace(/<\/tool_call>/gi, '')
+                  .replace(/\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*[^}]*\}/gi, ''); // Complete JSON
+                
+                // Also filter incomplete JSON patterns that might appear in chunks
+                if (contentToStream.includes('"name"') && contentToStream.includes('"arguments"')) {
+                  console.log(`🧹 Filtering tool call JSON from stream chunk`);
+                  contentToStream = contentToStream.replace(/\{\s*"name"[^}]*$/gi, ''); // Incomplete at end
+                }
+                
+                // 🚨 CRITICAL: Filter completion messages in real-time
+                // Remove: "Done.", "✅ Task complete.", and similar patterns
+                contentToStream = contentToStream
+                  .replace(/Done\.\s*$/gi, '')
+                  .replace(/✅\s*Task\s+complete\.\s*$/gi, '')
+                  .replace(/Done\.\s*✅\s*Task\s+complete\.\s*$/gi, '')
+                  .replace(/✅\s*Task\s+complete\.\s*Done\.\s*$/gi, '');
+                
+                // Only add to initialText and stream if there's content left after filtering
+                if (contentToStream.trim()) {
+                  initialText += contentToStream;
+                  console.log(`📝 AI Initial Text: "${contentToStream}"`);
+                  
+                  // Stream the content immediately
+                  res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: contentToStream })}\n`);
+                  
+                  if (totalChars % 100 === 0) {
+                    console.log(`📝 Streamed ${totalChars} characters so far...`);
+                  }
+                } else {
+                  // Still add to initialText for detection purposes, but don't stream
+                  initialText += delta.content;
                 }
               }
               
@@ -1492,20 +2106,639 @@ END OF CUSTOM MODE
     console.log('✅ Sent all text-delta messages');
     console.log(`📝 Captured initial text: ${initialText.length} chars`);
     
-    // Process tool calls - allow unlimited iterations for complex tasks
+    // 🚨 CRITICAL: Filter out malformed <tool_call> XML tags from AI text
+    // Some models (like Claude) generate incomplete tool_call tags like:
+    // <tool_call> {"name": "windows_take_screenshot", "arguments": } </tool_call>
+    // These should be removed from the visible text
+    let cleanedText = initialText;
+    let needsCleaning = false;
+    
+    // Remove complete malformed tool calls
+    const malformedToolCallPattern = /<tool_call>\s*\{[^}]*\}\s*<\/tool_call>/gi;
+    if (malformedToolCallPattern.test(cleanedText)) {
+      console.log(`🧹 Detected complete malformed <tool_call> tags - filtering`);
+      cleanedText = cleanedText.replace(malformedToolCallPattern, '');
+      needsCleaning = true;
+    }
+    
+    // Remove any remaining tool_call tags
+    if (/<tool_call>|<\/tool_call>/gi.test(cleanedText)) {
+      console.log(`🧹 Detected remaining <tool_call> tags - filtering`);
+      cleanedText = cleanedText.replace(/<tool_call>/gi, '').replace(/<\/tool_call>/gi, '');
+      needsCleaning = true;
+    }
+    
+    // Remove JSON-like patterns that look like tool calls
+    const jsonPattern = /\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*[^}]*\}/gi;
+    if (jsonPattern.test(cleanedText)) {
+      console.log(`🧹 Detected tool call JSON patterns - filtering`);
+      cleanedText = cleanedText.replace(jsonPattern, '');
+      needsCleaning = true;
+    }
+    
+    // Remove incomplete JSON at end of text
+    const incompleteJsonPattern = /\{\s*"name"[^}]*$/gi;
+    if (incompleteJsonPattern.test(cleanedText)) {
+      console.log(`🧹 Detected incomplete tool call JSON - filtering`);
+      cleanedText = cleanedText.replace(incompleteJsonPattern, '');
+      needsCleaning = true;
+    }
+    
+    // 🚨 CRITICAL: Remove completion messages that should be silent
+    // Filter out: "Done.", "✅ Task complete.", and similar completion messages
+    const completionPatterns = [
+      /Done\.\s*$/gi,
+      /✅\s*Task\s+complete\.\s*$/gi,
+      /Done\.\s*✅\s*Task\s+complete\.\s*$/gi,
+      /✅\s*Task\s+complete\.\s*Done\.\s*$/gi
+    ];
+    
+    for (const pattern of completionPatterns) {
+      if (pattern.test(cleanedText)) {
+        console.log(`🧹 Detected completion message - filtering`);
+        cleanedText = cleanedText.replace(pattern, '');
+        needsCleaning = true;
+      }
+    }
+    
+    if (needsCleaning) {
+      cleanedText = cleanedText.trim();
+      
+      // Send text-replace event to update frontend
+      res.write(`0:${JSON.stringify({ 
+        type: 'text-replace', 
+        text: cleanedText 
+      })}\n`);
+      if (res.flush) res.flush();
+      
+      initialText = cleanedText;
+      console.log(`✅ Cleaned text: ${initialText.length} chars`);
+    }
+    
+    // 🚨 CRITICAL: ALWAYS check for text-based tool calls, even if structured tool calls exist
+    // This is essential for detecting "click at (X, Y)" intent when AI also generates screenshot calls
+    if (initialText) {
+      const { extractToolCall, normalizeToolName } = require('./text-tool-call-parser');
+      const toolCallMatch = extractToolCall(initialText);
+      
+      if (toolCallMatch) {
+        console.log(`🔍 DETECTED TEXT-BASED TOOL CALL IN INITIAL RESPONSE: ${toolCallMatch.functionName}`);
+        console.log(`   Args:`, toolCallMatch.args);
+        console.log(`   Full match: "${toolCallMatch.fullMatch}"`);
+        
+        const normalizedName = normalizeToolName(toolCallMatch.functionName);
+        
+        // Check if this is explicit syntax (should be hidden) or natural language (should be kept)
+        const explicitSyntaxPattern = /\[Calls?:\s*([a-zA-Z_][a-zA-Z0-9_]*)\((\{[^}]*\}|[^)]*)\)\]/i;
+        const isExplicitSyntax = explicitSyntaxPattern.test(toolCallMatch.fullMatch);
+        
+        if (isExplicitSyntax) {
+          console.log(`📤 Sending text-replace event to hide explicit syntax`);
+          const cleanedText = toolCallMatch.textBefore + (toolCallMatch.textAfter ? ' ' + toolCallMatch.textAfter : '');
+          res.write(`0:${JSON.stringify({ 
+            type: 'text-replace', 
+            text: cleanedText 
+          })}\n`);
+          if (res.flush) res.flush();
+          initialText = cleanedText;
+        }
+        
+        // 🚨 CRITICAL: If text-based tool call is a CLICK, prioritize it over screenshot calls
+        // This fixes the issue where AI says "click at (676, 114)" but then generates screenshot tool call
+        if (normalizedName === 'windows_click_mouse') {
+          console.log(`🎯 CLICK INTENT DETECTED - Prioritizing over any screenshot tool calls`);
+          
+          // Remove any screenshot tool calls from the list
+          const screenshotIndex = toolCalls.findIndex(tc => 
+            tc.function?.name === 'windows_take_screenshot'
+          );
+          
+          if (screenshotIndex !== -1) {
+            console.log(`   ❌ Removing screenshot tool call at index ${screenshotIndex}`);
+            toolCalls.splice(screenshotIndex, 1);
+          }
+          
+          // Add click tool call at the beginning
+          toolCalls.unshift({
+            id: `text_call_initial_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: normalizedName,
+              arguments: JSON.stringify(toolCallMatch.args)
+            },
+            _fromText: true,
+            _textBefore: toolCallMatch.textBefore,
+            _textAfter: toolCallMatch.textAfter
+          });
+          
+          console.log(`✅ Click tool call added as priority (coordinates: ${JSON.stringify(toolCallMatch.args)})`);
+        } else if (toolCalls.length === 0) {
+          // Only add non-click tool calls if no structured tool calls exist
+          toolCalls.push({
+            id: `text_call_initial_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: normalizedName,
+              arguments: JSON.stringify(toolCallMatch.args)
+            },
+            _fromText: true,
+            _textBefore: toolCallMatch.textBefore,
+            _textAfter: toolCallMatch.textAfter
+          });
+          
+          console.log(`✅ Converted initial text tool call to structured format: ${normalizedName}`);
+        }
+      }
+    }
+    
+    // Process tool calls - with iteration limit to prevent infinite loops
     let toolCallIteration = 0;
-    const maxToolCallIterations = 100; // Allow up to 100 tool calls per request for complex multi-step tasks with iteration
+    const MAX_ITERATIONS = 50; // Maximum 50 iterations to prevent infinite loops
     const toolCallHistory = []; // Track tool calls to detect repetition
+    const executedToolCallIds = new Set(); // Track which tool call IDs have been executed
     const textHistory = []; // Track text responses to detect infinite loops
     let consecutiveScreenshots = 0; // Track consecutive screenshots without actions
+    let consecutiveIdenticalCalls = 0; // Track consecutive identical tool calls
+    let lastToolSignature = null; // Track last tool call signature
+    let contextTokenCount = 0; // Track approximate token count of conversation
+    // No context reset count limit - can reset infinitely
+    let shouldResetAfterResponse = false; // Flag to reset after current AI response completes
+    let hasResetContext = false; // Track if we've already reset in this iteration
+    let shouldForceContinuationAfterScreenshot = false; // Flag to force continuation after verification screenshot
+    let previousScreenshotData = null; // Track previous screenshot data for comparison
     
-    while (toolCalls.length > 0 && toolCallIteration < maxToolCallIterations) {
+    // Function to estimate token count (rough approximation: 1 token ≈ 4 characters)
+    function estimateTokens(text) {
+      if (!text) return 0;
+      return Math.ceil(text.length / 4);
+    }
+    
+    // Function to get model's context window size
+    function getModelContextWindow(modelName) {
+      const modelLower = modelName.toLowerCase();
+      
+      // Common model context windows
+      const contextWindows = {
+        // OpenRouter models
+        'gpt-4': 8192,
+        'gpt-4-turbo': 128000,
+        'gpt-4o': 128000,
+        'gpt-3.5-turbo': 16385,
+        'claude-3-opus': 200000,
+        'claude-3-sonnet': 200000,
+        'claude-3-haiku': 200000,
+        'claude-3.5-sonnet': 200000,
+        'gemini-1.5-pro': 1000000,
+        'gemini-1.5-flash': 1000000,
+        'gemini-2.0-flash': 1000000,
+        'llama-3.1-8b': 128000,
+        'llama-3.1-70b': 128000,
+        'llama-3.1-405b': 128000,
+        'mistral-7b': 32768,
+        'mistral-large': 128000,
+        'qwen-2.5': 32768,
+        'deepseek': 64000,
+        'trinity': 32768, // arcee-ai/trinity models - increased from 8K to 32K
+        'phi-3': 128000,
+        'command-r': 128000,
+        'mixtral': 32768
+      };
+      
+      // Try to find matching context window
+      for (const [key, contextSize] of Object.entries(contextWindows)) {
+        if (modelLower.includes(key)) {
+          return contextSize;
+        }
+      }
+      
+      // Default to conservative 8K if unknown
+      console.warn(`⚠️  Unknown model context window for "${modelName}", defaulting to 8192 tokens`);
+      return 8192;
+    }
+    
+    // Get model's context window and set safe limit (use 80% to allow longer conversations)
+    const modelContextWindow = getModelContextWindow(model);
+    const maxContextTokens = Math.floor(modelContextWindow * 0.8); // Use 80% to allow longer context
+    const maxResets = 10; // Allow up to 10 resets per request if needed
+    
+    console.log(`📊 Model: ${model}`);
+    console.log(`📊 Context window: ${modelContextWindow} tokens`);
+    console.log(`📊 Safe limit: ${maxContextTokens} tokens (80% of max)`);
+    console.log(`📊 Max resets allowed: ${maxResets}`);
+    
+    // Calculate initial context size
+    contextTokenCount = messages.reduce((total, msg) => {
+      return total + estimateTokens(msg.content);
+    }, 0);
+    
+    console.log(`📊 Initial context size: ~${contextTokenCount} tokens`);
+    
+    // Track if AI has explicitly said "Done"
+    let aiSaidDone = false;
+    
+    // Main loop - continue until AI says "Done" OR we hit iteration limit
+    while (!aiSaidDone && toolCallIteration < MAX_ITERATIONS) {
+      // Check if stop was requested
+      if (sessionId && stopRequests.has(sessionId)) {
+        console.log(`\n🛑 Stop requested for session ${sessionId} - stopping workflow`);
+        stopRequests.delete(sessionId); // Clear the stop request
+        
+        // Send stop message to frontend
+        res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: '\n\nWorkflow stopped by user.\n' })}\n`);
+        res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
+        if (res.flush) res.flush();
+        break;
+      }
+      
+      // Check if client disconnected (stream closed)
+      if (res.writableEnded || res.destroyed) {
+        console.log(`\n🛑 Client disconnected - stopping workflow`);
+        console.log(`   writableEnded: ${res.writableEnded}, destroyed: ${res.destroyed}`);
+        break;
+      }
+      
       toolCallIteration++;
       
+      // 🚨 CRITICAL: Check iteration limit to prevent infinite loops
+      if (toolCallIteration > MAX_ITERATIONS) {
+        console.log(`\n🚨 ITERATION LIMIT REACHED: ${toolCallIteration} iterations (max: ${MAX_ITERATIONS})`);
+        console.log(`   Stopping workflow to prevent infinite loop`);
+        
+        // Send warning message to frontend
+        const warningMsg = `\n\nMaximum iteration limit reached (${MAX_ITERATIONS} iterations). Stopping to prevent infinite loop.\n`;
+        res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: warningMsg })}\n`);
+        res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
+        if (res.flush) res.flush();
+        break;
+      }
+      
       console.log(`\n${'='.repeat(80)}`);
-      console.log(`🔧 Tool Call Iteration ${toolCallIteration}/${maxToolCallIterations}: Processing ${toolCalls.length} tool call(s)`);
-      console.log(`🔧 Tool calls:`, toolCalls.map(tc => `${tc.function.name} (id: ${tc.id})`));
+      console.log(`🔧 Tool Call Iteration ${toolCallIteration}/${MAX_ITERATIONS}: Processing ${toolCalls.length} tool call(s)`);
+      if (toolCalls.length > 0) {
+        console.log(`🔧 Tool calls:`, toolCalls.map(tc => `${tc.function.name} (id: ${tc.id})`));
+      } else {
+        console.log(`🔧 No tool calls in queue - will request continuation`);
+      }
+      console.log(`📊 Current context size: ~${contextTokenCount} tokens (max: ${maxContextTokens})`);
       console.log(`${'='.repeat(80)}\n`);
+      
+      // If no tool calls in queue, request a continuation from AI
+      if (toolCalls.length === 0) {
+        console.log(`\n📤 No tool calls in queue - requesting AI continuation...`);
+        
+        // Build continuation request
+        const continuationMessages = [...messages];
+        continuationMessages.push({
+          role: 'user',
+          content: `Continue with the next step. If the task is complete, say "Done".`
+        });
+        
+        // Request continuation
+        let contText = '';
+        let contChars = 0;
+        const newToolCalls = [];
+        
+        try {
+          const contResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openrouterApiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://ai-backend.local',
+              'X-Title': 'AI Backend'
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: continuationMessages,
+              tools: tools,
+              tool_choice: 'auto',
+              stream: true,
+              temperature: 0.7,
+              max_tokens: 4000
+            })
+          });
+          
+          if (!contResponse.ok) {
+            throw new Error(`Continuation request failed: ${contResponse.status}`);
+          }
+          
+          const contReader = contResponse.body.getReader();
+          const contDecoder = new TextDecoder();
+          
+          while (true) {
+            const { done, value } = await contReader.read();
+            if (done) break;
+            
+            const chunk = contDecoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
+            
+            for (const line of lines) {
+              const data = line.replace(/^data: /, '').trim();
+              if (data === '[DONE]') continue;
+              
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta;
+                
+                if (delta?.content) {
+                  // 🚨 CRITICAL: Filter out malformed <tool_call> tags in real-time
+                  let contentToStream = delta.content;
+                  
+                  // Remove tool_call tags and their content
+                  contentToStream = contentToStream
+                    .replace(/<tool_call>/gi, '')
+                    .replace(/<\/tool_call>/gi, '')
+                    .replace(/\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*[^}]*\}/gi, '');
+                  
+                  // Filter incomplete JSON patterns
+                  if (contentToStream.includes('"name"') && contentToStream.includes('"arguments"')) {
+                    console.log(`🧹 Filtering tool call JSON from continuation stream chunk`);
+                    contentToStream = contentToStream.replace(/\{\s*"name"[^}]*$/gi, '');
+                  }
+                  
+                  // Add to contText for detection
+                  contText += delta.content;
+                  contChars += delta.content.length;
+                  
+                  // Only stream if there's content left after filtering
+                  if (contentToStream.trim()) {
+                    res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: contentToStream })}\n`);
+                    if (res.flush) res.flush();
+                  }
+                }
+                
+                if (delta?.tool_calls) {
+                  for (const toolCallDelta of delta.tool_calls) {
+                    const index = toolCallDelta.index;
+                    
+                    if (!newToolCalls[index]) {
+                      newToolCalls[index] = {
+                        id: toolCallDelta.id || `call_${Date.now()}_${index}`,
+                        type: 'function',
+                        function: {
+                          name: '',
+                          arguments: ''
+                        }
+                      };
+                    }
+                    
+                    if (toolCallDelta.function?.name) {
+                      newToolCalls[index].function.name += toolCallDelta.function.name;
+                    }
+                    
+                    if (toolCallDelta.function?.arguments) {
+                      newToolCalls[index].function.arguments += toolCallDelta.function.arguments;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('Failed to parse continuation:', e);
+              }
+            }
+          }
+          
+          console.log(`✅ Continuation complete: ${contChars} chars generated`);
+          
+          // Check for "Done" in continuation text
+          const donePattern = /\b(done|finished|complete|completed|task\s+complete|workflow\s+complete)\b/i;
+          if (contText && donePattern.test(contText)) {
+            console.log(`\n✅ AI SAID DONE: "${contText.match(donePattern)[0]}"`);
+            console.log(`   Task is complete - exiting workflow loop`);
+            aiSaidDone = true;
+            
+            // Task complete - don't send completion message to user (silent)
+            console.log('✅ Task complete (silent)');
+            
+            // Exit the loop
+            break;
+          }
+          
+          // Check for text-based tool calls in continuation
+          if (contText) {
+            const { extractToolCall, normalizeToolName } = require('./text-tool-call-parser');
+            const toolCallMatch = extractToolCall(contText);
+            
+            if (toolCallMatch) {
+              console.log(`🔍 DETECTED TEXT-BASED TOOL CALL: ${toolCallMatch.functionName}`);
+              const normalizedName = normalizeToolName(toolCallMatch.functionName);
+              
+              newToolCalls.push({
+                id: `text_call_empty_${toolCallIteration}_${Date.now()}`,
+                type: 'function',
+                function: {
+                  name: normalizedName,
+                  arguments: JSON.stringify(toolCallMatch.args)
+                },
+                _fromText: true
+              });
+            }
+          }
+          
+          // Add new tool calls to queue
+          if (newToolCalls.length > 0) {
+            toolCalls.push(...newToolCalls);
+            console.log(`📊 Added ${newToolCalls.length} tool call(s) to queue`);
+          }
+          
+          // Add continuation to messages
+          if (contText || newToolCalls.length > 0) {
+            messages.push({
+              role: 'assistant',
+              content: contText || null,
+              tool_calls: newToolCalls.length > 0 ? newToolCalls : undefined
+            });
+          }
+          
+        } catch (error) {
+          console.error(`❌ Continuation request failed:`, error);
+          
+          // If continuation fails, exit gracefully
+          const errorMsg = `\n\nFailed to continue workflow. Stopping.\n`;
+          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: errorMsg })}\n`);
+          if (res.flush) res.flush();
+          break;
+        }
+        
+        // If still no tool calls after continuation, exit
+        if (toolCalls.length === 0 && !aiSaidDone) {
+          console.log(`\n⚠️  Still no tool calls after continuation - exiting`);
+          // Don't show warning to user - this is normal for conversational messages
+          break;
+        }
+        
+        // Continue to next iteration
+        continue;
+      }
+      
+      // Periodic context check every 10 iterations
+      if (toolCallIteration % 10 === 0 && toolCallIteration > 0) {
+        const percentUsed = Math.round((contextTokenCount / maxContextTokens) * 100);
+        console.log(`\n📊 PERIODIC CONTEXT CHECK (Iteration ${toolCallIteration})`);
+        console.log(`   Context usage: ${percentUsed}% (${contextTokenCount}/${maxContextTokens} tokens)`);
+        if (percentUsed > 80) {
+          console.log(`   ⚠️  WARNING: Context is ${percentUsed}% full - reset may trigger soon`);
+        }
+        console.log(``);
+      }
+      
+      // PROACTIVE CONTEXT TRIMMING - Keep only recent messages to prevent explosion
+      // Trim when context reaches 70% of max to prevent hitting the critical limit
+      const trimLimit = Math.floor(maxContextTokens * 0.7);
+      if (contextTokenCount > trimLimit && messages.length > 3) {
+        console.log(`\n${'='.repeat(80)}`);
+        console.log(`✂️  PROACTIVE CONTEXT TRIMMING - Preventing context explosion`);
+        console.log(`   Current: ~${contextTokenCount} tokens`);
+        console.log(`   Trim limit: ${trimLimit} tokens (70% of ${maxContextTokens})`);
+        console.log(`   Current messages: ${messages.length}`);
+        console.log(`${'='.repeat(80)}\n`);
+        
+        // Keep: system prompt (index 0) + original user request (index 1) + last 4 messages
+        const systemPrompt = messages[0];
+        const userRequest = messages[1];
+        const recentMessages = messages.slice(-4); // Last 4 messages (usually 2 tool call cycles)
+        
+        messages.length = 0;
+        messages.push(systemPrompt);
+        messages.push(userRequest);
+        messages.push(...recentMessages);
+        
+        // Recalculate context size
+        contextTokenCount = messages.reduce((total, msg) => {
+          return total + estimateTokens(msg.content || '');
+        }, 0);
+        
+        console.log(`✅ Context trimmed`);
+        console.log(`   New message count: ${messages.length}`);
+        console.log(`   New context size: ~${contextTokenCount} tokens`);
+        console.log(`   Saved: ~${trimLimit - contextTokenCount} tokens\n`);
+      }
+      
+      // DISABLED: Automatic context reset based on token count
+      // Context should only reset when AI says "Stopped to prevent repeating"
+      // or when it's absolutely necessary (context truly full)
+      
+      // Only reset if context is CRITICALLY full (>95% of max)
+      const criticalLimit = Math.floor(modelContextWindow * 0.95);
+      if (contextTokenCount > criticalLimit) {
+        console.log(`\n${'='.repeat(80)}`);
+        console.log(`🔄 CRITICAL CONTEXT RESET - CONTEXT CRITICALLY FULL`);
+        console.log(`   Current: ~${contextTokenCount} tokens`);
+        console.log(`   Critical limit: ${criticalLimit} tokens (95% of ${modelContextWindow})`);
+        console.log(`   Resetting to prevent context overflow`);
+        console.log(`${'='.repeat(80)}\n`);
+        
+        // Create a very brief summary of what's been accomplished
+        const recentActions = toolCallHistory.slice(-5).map(sig => {
+          const { tool, args } = parseToolSignature(sig);
+          if (tool === 'windows_click_mouse') {
+            return `clicked (${args.x}, ${args.y})`;
+          } else if (tool === 'windows_type_text') {
+            return `typed "${args.text}"`;
+          } else if (tool === 'windows_press_key') {
+            return `pressed ${args.key}`;
+          }
+          return tool.replace('windows_', '');
+        }).join(' → ');
+        
+        // Determine what step we're on based on actions taken
+        let currentStep = '';
+        const hasTypedYoutube = toolCallHistory.some(sig => sig.includes('youtube'));
+        const hasTypedMrBeast = toolCallHistory.some(sig => sig.includes('mr beast') || sig.includes('mrbeast'));
+        const hasPressedEnter = toolCallHistory.some(sig => sig.includes('press_key') && sig.includes('enter'));
+        
+        if (!hasTypedYoutube) {
+          currentStep = 'NEXT STEP: Navigate to YouTube (click address bar, type youtube.com, press enter)';
+        } else if (!hasPressedEnter) {
+          currentStep = 'NEXT STEP: Press Enter to navigate';
+        } else if (!hasTypedMrBeast) {
+          currentStep = 'NEXT STEP: Search for "mr beast" on YouTube';
+        } else {
+          currentStep = 'NEXT STEP: Complete the search';
+        }
+        
+        const summary = `Actions so far: ${recentActions || 'none'}. ${currentStep}`;
+        
+        console.log(`📝 Context summary: ${summary}`);
+        console.log(`📊 Summary size: ~${estimateTokens(summary)} tokens`);
+        
+        // Reset messages to: system prompt + user request + summary
+        // NOTE: We DON'T include the last screenshot data because it's too large (~3000 tokens)
+        // and would cause immediate reset loop. Instead, AI will take a fresh screenshot.
+        const originalRequest = history[0]?.content || message;
+        messages.length = 0; // Clear array
+        
+        // 1. System prompt
+        messages.push({
+          role: 'system',
+          content: modeSystemPrompt
+        });
+        
+        // 2. Original user request with summary
+        messages.push({
+          role: 'user',
+          content: `${originalRequest}
+
+CONTEXT: ${summary}
+
+🚨 CRITICAL INSTRUCTIONS AFTER CONTEXT RESET:
+
+1. Take a screenshot to see current state
+2. The screenshot will include coordinates for ALL elements
+3. When you want to click something, you MUST use coordinates from the screenshot data
+4. Format: windows_click_mouse(x=123, y=456) or "clicking at (123, 456)"
+5. NEVER say "click at [element name]" without coordinates
+6. ALWAYS extract coordinates from the KEY ELEMENTS or TEXT sections
+
+Example CORRECT responses:
+- "I'll click the YouTube search bar at (651, 155)"
+- windows_click_mouse(x=651, y=155)
+- "clicking at (651, 155)"
+
+Example WRONG responses:
+- "click at YouTube search bar" ❌ (no coordinates!)
+- "I'll click the search bar" ❌ (no coordinates!)
+
+CRITICAL: Analyze current state and execute the NEXT step with COORDINATES. DO NOT repeat previous actions.`
+        });
+        
+        // Recalculate context size after reset
+        contextTokenCount = messages.reduce((total, msg) => {
+          return total + estimateTokens(msg.content || '');
+        }, 0);
+        
+        console.log(`📊 Context size after reset: ~${contextTokenCount} tokens`);
+        
+        // Check if there are pending action tool calls that should be preserved
+        const hasActionToolCalls = toolCalls.some(tc => {
+          const toolName = tc.function.name.replace('windows_', '');
+          return ['click_mouse', 'type_text', 'press_key'].includes(toolName);
+        });
+        
+        if (hasActionToolCalls) {
+          console.log(`✅ Preserving ${toolCalls.length} pending action tool call(s) after context reset`);
+          console.log(`   Tool calls:`, toolCalls.map(tc => tc.function.name));
+          // Don't clear tool calls - let them execute after reset
+        } else {
+          console.log(`ℹ️  No pending action tool calls, AI will take fresh screenshot`);
+          // Force a fresh screenshot to see current state
+          toolCalls.length = 0;
+          toolCalls.push({
+            id: `reset_screenshot_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: 'windows_take_screenshot',
+              arguments: '{}'
+            }
+          });
+        }
+        
+        // Send a message to user
+        const resetMessage = `\n\n┃ Context reset. Taking fresh screenshot.\n`;
+        res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+        if (res.flush) res.flush();
+        
+        console.log(`✅ Context reset complete, will take fresh screenshot`);
+      }
       
       // Check if text was generated before first tool call
       if (toolCallIteration === 1 && (!initialText || initialText.trim().length === 0)) {
@@ -1521,102 +2754,294 @@ END OF CUSTOM MODE
         if (res.flush) res.flush();
       }
       
-      // Check for excessive repetition (allow up to 2 repeats, block on 3rd)
+      // CRITICAL: Check for text repetition BEFORE executing tool calls
+      // This catches cases where AI generates same text then makes a tool call
+      const currentTextNormalized = (initialText || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      
+      if (currentTextNormalized.length > 30) { // Only check substantial responses
+        const recentTexts = textHistory.slice(-3); // Check last 3 responses
+        let textRepetitionCount = 0;
+        
+        for (const prevText of recentTexts) {
+          const prevNormalized = prevText.trim().toLowerCase().replace(/\s+/g, ' ');
+          
+          // Calculate similarity (check if 80% of words match)
+          const currentWords = currentTextNormalized.split(' ');
+          const prevWords = prevNormalized.split(' ');
+          
+          if (currentWords.length > 5 && prevWords.length > 5) {
+            const matchingWords = currentWords.filter(word => prevWords.includes(word)).length;
+            const similarity = matchingWords / Math.max(currentWords.length, prevWords.length);
+            
+            if (similarity > 0.8) {
+              textRepetitionCount++;
+            }
+          }
+        }
+        
+        // If we've seen this response 2+ times, it's a repetition loop
+        if (textRepetitionCount >= 2) {
+          console.log(`⚠️ TEXT REPETITION BEFORE TOOL CALL: AI generated similar response ${textRepetitionCount + 1} times`);
+          console.log(`   Current: "${initialText.substring(0, 100)}..."`);
+          console.log(`   This indicates the AI is stuck. Resetting context and forcing different approach.`);
+          
+          // Reset context with strong instruction
+          const recentActions = toolCallHistory.slice(-5).map(sig => {
+            const { tool, args } = parseToolSignature(sig);
+            if (tool === 'windows_click_mouse') {
+              return `clicked (${args.x}, ${args.y})`;
+            } else if (tool === 'windows_type_text') {
+              return `typed "${args.text}"`;
+            } else if (tool === 'windows_press_key') {
+              return `pressed ${args.key}`;
+            }
+            return tool.replace('windows_', '');
+          }).join(', ');
+          
+          const summary = `Previous actions: ${recentActions}. You are REPEATING the same description. DO NOT describe again - execute a DIFFERENT action.`;
+          
+          // Reset messages
+          messages.length = 0;
+          messages.push({
+            role: 'system',
+            content: modeSystemPrompt
+          });
+          messages.push({
+            role: 'user',
+            content: `${history[0]?.content || message}\n\nContext: ${summary}\n\nCRITICAL: Take a screenshot and execute a DIFFERENT action. DO NOT repeat previous descriptions.`
+          });
+          
+          // Force a screenshot
+          toolCalls.length = 0;
+          toolCalls.push({
+            id: `reset_screenshot_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: 'windows_take_screenshot',
+              arguments: '{}'
+            }
+          });
+          
+          const resetMessage = `\n\n┃ Detected text repetition. Resetting context and trying different approach.\n`;
+          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+          if (res.flush) res.flush();
+          
+          console.log(`✅ Context reset due to text repetition, taking fresh screenshot`);
+        }
+      }
+      
+      // Check for excessive repetition - but allow multi-step sequences
       const currentTool = toolCalls[0];
-      const toolSignature = `${currentTool.function.name}:${JSON.stringify(currentTool.function.arguments)}`;
+      
+      // SPECIAL CASE: If AI is trying to call press_key after type_text, but we already auto-injected it
+      // Check if the last two tools in history are type_text followed by press_key(enter)
+      if (currentTool.function.name === 'windows_press_key' && toolCallHistory.length >= 2) {
+        const lastTool = toolCallHistory[toolCallHistory.length - 1];
+        const secondLastTool = toolCallHistory[toolCallHistory.length - 2];
+        
+        // Check if pattern is: type_text → press_key(enter) → AI wants to call press_key again
+        if (lastTool.startsWith('windows_press_key') && secondLastTool.startsWith('windows_type_text')) {
+          console.log(`\n${'='.repeat(80)}`);
+          console.log(`⚠️  AI TRYING TO PRESS ENTER AFTER AUTO-INJECTED ENTER`);
+          console.log(`   Last action: type_text (with auto-injected Enter)`);
+          console.log(`   AI wants to: press_key again (redundant!)`);
+          console.log(`   Skipping this tool call and taking screenshot instead`);
+          console.log(`${'='.repeat(80)}\n`);
+          
+          // Skip the redundant press_key and force a screenshot instead
+          toolCalls.length = 0;
+          toolCalls.push({
+            id: `skip_redundant_enter_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: 'windows_take_screenshot',
+              arguments: '{}'
+            }
+          });
+          
+          // NO message to user - keep it silent
+          // The screenshot will happen automatically
+          
+          console.log(`✅ Skipped redundant press_key, taking screenshot instead`);
+          continue; // Skip to screenshot
+        }
+      }
+      
+      // Normalize arguments to ensure consistent comparison (sort keys alphabetically)
+      let normalizedArgs = '{}';
+      try {
+        if (currentTool.function.arguments) {
+          const argsObj = typeof currentTool.function.arguments === 'string' 
+            ? JSON.parse(currentTool.function.arguments)
+            : currentTool.function.arguments;
+          normalizedArgs = JSON.stringify(Object.keys(argsObj).sort().reduce((acc, key) => {
+            acc[key] = argsObj[key];
+            return acc;
+          }, {}));
+        }
+      } catch (e) {
+        console.error(`Failed to normalize arguments:`, e);
+        // CRITICAL: Always use valid JSON, never use the raw malformed string
+        normalizedArgs = '{}';
+      }
+      
+      // CRITICAL: Escape the JSON string to avoid parsing errors later
+      // Use base64 encoding to avoid quote escaping issues
+      const toolSignature = `${currentTool.function.name}:${Buffer.from(normalizedArgs).toString('base64')}`;
       
       // Allow take_screenshot to be called multiple times for verification
-      // Only block repetition for action tools (click, type, press_key, move, scroll)
       const isScreenshotTool = currentTool.function.name === 'windows_take_screenshot';
-      const isActionTool = ['windows_click_mouse', 'windows_type_text', 'windows_press_key', 'windows_move_mouse', 'windows_scroll_mouse'].includes(currentTool.function.name);
+      
+      // Get the last non-screenshot tool that was called
+      const lastNonScreenshotTool = toolCallHistory.length > 0 ? toolCallHistory[toolCallHistory.length - 1] : null;
+      const lastToolName = lastNonScreenshotTool ? lastNonScreenshotTool.split(':')[0] : null;
+      const currentToolName = currentTool.function.name;
+      
+      // Validate tool name - must be a valid function name format
+      const validToolNamePattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+      if (!validToolNamePattern.test(currentToolName)) {
+        console.log(`⚠️ Invalid tool name detected: "${currentToolName}" - skipping`);
+        continue; // Skip this invalid tool call
+      }
+      
+      // Define valid multi-step sequences (these are OK, not repetition)
+      const validSequences = {
+        'windows_click_mouse': ['windows_type_text', 'windows_press_key', 'windows_scroll_mouse'],
+        'windows_type_text': ['windows_press_key', 'windows_click_mouse'], // type_text → press_key is valid (auto-injected Enter)
+        'windows_press_key': ['windows_type_text', 'windows_click_mouse', 'windows_take_screenshot'], // press_key → screenshot is valid
+        'windows_move_mouse': ['windows_click_mouse', 'windows_scroll_mouse']
+      };
+      
+      // Check if this is a valid progression in a multi-step sequence
+      const isValidProgression = lastToolName && validSequences[lastToolName]?.includes(currentToolName);
       
       // Count how many times this exact tool call has been made
       const repetitionCount = toolCallHistory.filter(sig => sig === toolSignature).length;
       
-      // Block if the same action has been repeated 3 or more times (allow 2 repeats)
-      if (repetitionCount >= 2 && !isScreenshotTool) {
-        console.log(`⚠️ EXCESSIVE REPETITION DETECTED: AI is calling the same tool ${repetitionCount + 1} times`);
-        console.log(`   Tool: ${currentTool.function.name}`);
-        console.log(`   Arguments: ${currentTool.function.arguments}`);
-        console.log(`   This is likely stuck in a loop - stopping iteration`);
-        console.log(`   Tool call history:`, toolCallHistory);
+      // Detect workflow loops (e.g., screenshot → click → screenshot → click)
+      // Check if the last 4 actions show a repeating pattern
+      if (toolCallHistory.length >= 4 && !isScreenshotTool) {
+        const recentHistory = toolCallHistory.slice(-4);
+        const pattern1 = recentHistory.slice(0, 2).join('|');
+        const pattern2 = recentHistory.slice(2, 4).join('|');
         
-        // Request ONE FINAL continuation from AI WITHOUT tools to get completion message
-        console.log(`📝 Requesting final completion message from AI (no tools)...`);
-        
-        try {
-          const finalMessages = [
-            ...messages,
-            {
-              role: 'assistant',
-              content: initialText || 'I attempted to complete the task but encountered repetition.'
-            },
-            {
-              role: 'user',
-              content: 'The system detected that you were repeating the same action. Please provide a brief summary of what you accomplished and the current status.'
-            }
-          ];
+        if (pattern1 === pattern2) {
+          console.log(`⚠️ WORKFLOW LOOP DETECTED: Repeating pattern ${pattern1}`);
+          console.log(`   Recent history: ${recentHistory.join(' → ')}`);
+          console.log(`   Triggering context reset to break the loop`);
           
-          const finalResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openrouterApiKey}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'http://localhost:3000',
-              'X-Title': 'Kali AI Assistant'
-            },
-            body: JSON.stringify({
-              model: model,
-              messages: finalMessages,
-              stream: true,
-              // NO TOOLS - force text-only response
-              temperature: 0.7
-            })
+          // Reset context instead of stopping
+          const recentActions = toolCallHistory.slice(-5).map(sig => {
+            const { tool, args } = parseToolSignature(sig);
+            if (tool === 'windows_click_mouse') {
+              return `clicked (${args.x}, ${args.y})`;
+            } else if (tool === 'windows_type_text') {
+              return `typed "${args.text}"`;
+            } else if (tool === 'windows_press_key') {
+              return `pressed ${args.key}`;
+            }
+            return tool.replace('windows_', '');
+          }).join(', ');
+          
+          const summary = `Previous actions: ${recentActions}. You were repeating a pattern. Continue with a DIFFERENT action.`;
+          
+          console.log(`📝 Context summary: ${summary}`);
+          
+          // Reset messages
+          messages.length = 0;
+          messages.push({
+            role: 'system',
+            content: modeSystemPrompt
+          });
+          messages.push({
+            role: 'user',
+            content: `${history[0]?.content || message}\n\nContext: ${summary}\n\nTake a screenshot and try a DIFFERENT approach.`
           });
           
-          if (finalResponse.ok) {
-            console.log(`✅ Final message stream started...`);
-            const finalReader = finalResponse.body.getReader();
-            let finalBuffer = '';
-            
-            while (true) {
-              const { done, value } = await finalReader.read();
-              if (done) break;
-              
-              finalBuffer += decoder.decode(value, { stream: true });
-              const finalLines = finalBuffer.split('\n');
-              finalBuffer = finalLines.pop() || '';
-              
-              for (const finalLine of finalLines) {
-                if (finalLine.startsWith('data: ')) {
-                  const finalData = finalLine.slice(6);
-                  if (finalData === '[DONE]') continue;
-                  
-                  try {
-                    const finalParsed = JSON.parse(finalData);
-                    const finalDelta = finalParsed.choices?.[0]?.delta;
-                    
-                    if (finalDelta?.content) {
-                      console.log(`📝 Final message: "${finalDelta.content}"`);
-                      res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: finalDelta.content })}\n`);
-                      if (res.flush) res.flush();
-                    }
-                  } catch (e) {
-                    console.error('Failed to parse final message:', e);
-                  }
-                }
-              }
+          // Force a screenshot
+          toolCalls.length = 0;
+          toolCalls.push({
+            id: `reset_screenshot_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: 'windows_take_screenshot',
+              arguments: '{}'
             }
-            
-            console.log(`✅ Final message complete`);
-          } else {
-            console.error(`❌ Final message request failed: ${finalResponse.status}`);
-          }
-        } catch (error) {
-          console.error(`❌ Error requesting final message:`, error);
+          });
+          
+          const resetMessage = `\n\n┃ Detected workflow loop. Resetting context and trying different approach.\n`;
+          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+          if (res.flush) res.flush();
+          
+          console.log(`✅ Context reset due to workflow loop, taking fresh screenshot`);
+          
+          // Don't break - continue with the screenshot
         }
+      }
+      
+      // Only block if:
+      // 1. It's not a screenshot tool
+      // 2. It's been called before (repetitionCount >= 1)
+      // 3. It's NOT a valid progression in a multi-step sequence
+      if (repetitionCount >= 1 && !isScreenshotTool && !isValidProgression) {
+        console.log(`⚠️ REPETITION DETECTED: AI is calling the same tool ${repetitionCount + 1} times`);
+        console.log(`   Tool: ${currentTool.function.name}`);
+        console.log(`   Arguments: ${JSON.stringify(currentTool.function.arguments)}`);
+        console.log(`   Last tool: ${lastToolName}`);
+        console.log(`   Triggering context reset to continue fresh`);
         
-        break; // Stop the loop to prevent excessive repetition
+        // Instead of stopping, reset context and continue
+        const recentActions = toolCallHistory.slice(-5).map(sig => {
+          const { tool, args } = parseToolSignature(sig);
+          if (tool === 'windows_click_mouse') {
+            return `clicked (${args.x}, ${args.y})`;
+          } else if (tool === 'windows_type_text') {
+            return `typed "${args.text}"`;
+          } else if (tool === 'windows_press_key') {
+            return `pressed ${args.key}`;
+          }
+          return tool.replace('windows_', '');
+        }).join(', ');
+        
+        const summary = `Previous actions: ${recentActions}. You tried to repeat an action. Continue with the NEXT step instead.`;
+        
+        console.log(`📝 Context summary: ${summary}`);
+        
+        // Reset messages to just system prompt + brief summary + current user request
+        messages.length = 0; // Clear array
+        messages.push({
+          role: 'system',
+          content: modeSystemPrompt
+        });
+        messages.push({
+          role: 'user',
+          content: `${history[0]?.content || message}\n\nContext: ${summary}\n\nTake a screenshot and continue with the NEXT step (not the repeated action).`
+        });
+        
+        // Force a screenshot to get fresh context
+        toolCalls.length = 0; // Clear current tool calls
+        toolCalls.push({
+          id: `reset_screenshot_${Date.now()}`,
+          type: 'function',
+          function: {
+            name: 'windows_take_screenshot',
+            arguments: '{}'
+          }
+        });
+        
+        // Send a message to user
+        const resetMessage = `\n\n┃ Detected repetition. Resetting context and continuing with next step.\n`;
+        res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+        if (res.flush) res.flush();
+        
+        console.log(`✅ Context reset due to repetition, taking fresh screenshot`);
+        
+        // Don't break - continue with the screenshot
+      }
+      
+      // Log valid progressions for debugging
+      if (isValidProgression) {
+        console.log(`✅ Valid multi-step progression: ${lastToolName} → ${currentToolName}`);
       }
       
       // Add to history (but don't track screenshots for repetition detection)
@@ -1624,17 +3049,141 @@ END OF CUSTOM MODE
         toolCallHistory.push(toolSignature);
       }
       
+      // 🚨 CRITICAL: Detect consecutive identical tool calls (infinite loop detection)
+      if (lastToolSignature === toolSignature) {
+        consecutiveIdenticalCalls++;
+        console.log(`⚠️  Consecutive identical call #${consecutiveIdenticalCalls}: ${currentToolName}`);
+        
+        // Stop after 5 consecutive identical calls
+        if (consecutiveIdenticalCalls >= 5) {
+          console.log(`\nINFINITE LOOP DETECTED: ${currentToolName} called ${consecutiveIdenticalCalls} times in a row!`);
+          console.log(`   Stopping workflow to prevent infinite loop`);
+          
+          // Send warning message to frontend
+          const loopWarning = `\n\nInfinite loop detected: ${currentToolName} called ${consecutiveIdenticalCalls} times consecutively. Stopping workflow.\n`;
+          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: loopWarning })}\n`);
+          res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
+          if (res.flush) res.flush();
+          
+          // Break out of the while loop
+          toolCalls = [];
+          break;
+        }
+      } else {
+        // Different tool call - reset counter
+        consecutiveIdenticalCalls = 1;
+        lastToolSignature = toolSignature;
+      }
+      
       // Small delay to ensure any text is rendered before tool execution
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Process ONLY the FIRST tool call (no loop, no continuation)
+      // Process ONLY the FIRST tool call
       const toolCall = toolCalls[0];
+      
+      // 🚨 CRITICAL: Check if this tool call ID has already been executed
+      if (executedToolCallIds.has(toolCall.id)) {
+        console.log(`\n🚨 SKIPPING DUPLICATE TOOL CALL ID: ${toolCall.id}`);
+        console.log(`   Tool: ${toolCall.function.name}`);
+        console.log(`   This tool call has already been executed - removing from queue`);
+        
+        // Remove this tool call from the array and continue to the next one
+        toolCalls.shift();
+        continue;
+      }
+      
+      // Mark this tool call ID as executed
+      executedToolCallIds.add(toolCall.id);
+      console.log(`✅ Marked tool call ID as executed: ${toolCall.id}`);
       
       try {
         const functionName = toolCall.function.name;
-        const functionArgs = JSON.parse(toolCall.function.arguments);
+        
+        // Handle empty or missing arguments
+        let functionArgs = {};
+        if (toolCall.function.arguments && toolCall.function.arguments.trim()) {
+          try {
+            functionArgs = JSON.parse(toolCall.function.arguments);
+          } catch (parseError) {
+            console.warn(`⚠️  Failed to parse tool arguments, using empty object:`, parseError.message);
+            console.warn(`   Arguments string:`, toolCall.function.arguments);
+          }
+        } else {
+          console.log(`ℹ️  Tool has no arguments (empty or undefined)`);
+        }
         
         console.log(`🔧 Executing tool: ${functionName}`, functionArgs);
+        
+        // VALIDATION 1: Check for browser bar shortcut (typing search query in browser address bar)
+        // Instead of blocking, we'll let it execute but inject a correction message
+        let shouldCorrectWorkflow = false;
+        let correctionMessage = '';
+        
+        if (functionName === 'windows_type_text' && functionArgs.text) {
+          // Check if last action was clicking in browser bar (y < 100)
+          const lastToolCall = toolCallHistory[toolCallHistory.length - 1];
+          if (lastToolCall) {
+            const [lastTool, lastArgsStr] = lastToolCall.split(':');
+            if (lastTool === 'windows_click_mouse') {
+              try {
+                const lastArgs = JSON.parse(lastArgsStr);
+                const lastY = lastArgs.y;
+                
+                // If last click was in browser bar zone (y < 100) and text is not a URL
+                if (lastY < 100) {
+                  const text = functionArgs.text.toLowerCase();
+                  const isURL = text.includes('.com') || text.includes('.org') || text.includes('.net') || 
+                                text.includes('http') || text.startsWith('www.');
+                  
+                  if (!isURL) {
+                    console.log(`\n${'='.repeat(80)}`);
+                    console.log(`⚠️  DETECTED: Browser bar shortcut!`);
+                    console.log(`   Last click: y=${lastY} (browser bar zone)`);
+                    console.log(`   Typing: "${functionArgs.text}"`);
+                    console.log(`   This is a SEARCH QUERY, not a URL!`);
+                    console.log(`   Will execute but inject correction message`);
+                    console.log(`${'='.repeat(80)}\n`);
+                    
+                    shouldCorrectWorkflow = true;
+                    correctionMessage = `\n\n⚠️  WORKFLOW CORRECTION NEEDED:\n\nYou just typed "${functionArgs.text}" in the browser address bar (y=${lastY}). This will work but is NOT the correct workflow.\n\nCORRECT workflow for "search for X on YouTube":\n1. Click browser bar (y < 100)\n2. Type "youtube.com" (the website URL, NOT the search query)\n3. Press Enter\n4. Wait for YouTube to load (take screenshot)\n5. Click YouTube's search bar (y > 100)\n6. Type "${functionArgs.text}" (the search query)\n7. Press Enter\n\nFor now, continue with current results, but remember the correct workflow for next time.\n`;
+                  }
+                }
+              } catch (e) {
+                console.warn(`⚠️  Failed to parse last tool call args:`, e.message);
+              }
+            }
+          }
+        }
+        
+        // VALIDATION 2: Check for repeated clicks on same coordinates
+        if (functionName === 'windows_click_mouse') {
+          const currentCoords = `${functionArgs.x},${functionArgs.y}`;
+          const recentClicks = toolCallHistory.slice(-3).filter(sig => sig.startsWith('windows_click_mouse'));
+          
+          let repeatCount = 0;
+          for (const click of recentClicks) {
+            const [, argsStr] = click.split(':');
+            try {
+              const args = JSON.parse(argsStr);
+              const coords = `${args.x},${args.y}`;
+              if (coords === currentCoords) {
+                repeatCount++;
+              }
+            } catch (e) {}
+          }
+          
+          if (repeatCount >= 2) {
+            console.log(`\n${'='.repeat(80)}`);
+            console.log(`⚠️  DETECTED: Repeated clicks on same coordinates!`);
+            console.log(`   Coordinates: (${functionArgs.x}, ${functionArgs.y})`);
+            console.log(`   Clicked ${repeatCount} times already`);
+            console.log(`   Will execute but inject correction message`);
+            console.log(`${'='.repeat(80)}\n`);
+            
+            shouldCorrectWorkflow = true;
+            correctionMessage = `\n\n⚠️  LOOP DETECTED:\n\nYou've clicked (${functionArgs.x}, ${functionArgs.y}) multiple times. This element is not responding as expected.\n\nTry a DIFFERENT approach:\n- If trying to open Chrome: Look for "Google Chrome" in Desktop Icons list and double-click it\n- If trying to search: Use the browser address bar or website search bar\n- If element didn't work: Try a different element\n\nNEVER click the same coordinates more than twice. Move on to a different action.\n`;
+          }
+        }
         
         // Send tool-call-start event
         console.log(`📤 Sending tool-call-start event`);
@@ -1650,115 +3199,391 @@ END OF CUSTOM MODE
         // Execute the tool
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        if (windowsClient && functionName.startsWith('windows_')) {
-          const toolName = functionName.replace('windows_', '');
-          const startTime = Date.now();
-          
-          let result;
-          
-          // Special handling for send_to_terminal - execute directly via WebSocket
-          if (toolName === 'send_to_terminal') {
-            console.log(`🔧 Sending command directly to terminal via WebSocket...`);
+        let result;
+        let duration = 0;
+        const startTime = Date.now();
+        let toolName = functionName.replace('windows_', '');
+        
+        console.log(`🔍 DEBUG: windowsClient exists: ${!!windowsClient}`);
+        console.log(`🔍 DEBUG: functionName: ${functionName}`);
+        console.log(`🔍 DEBUG: starts with windows_: ${functionName.startsWith('windows_')}`);
+        
+        // Execute tool via HTTP API or MCP client
+        if (functionName.startsWith('windows_')) {
+          // If windowsClient is not available, call Windows Tools API directly via HTTP
+          if (!windowsClient) {
+            console.log(`⚠️  MCP client not available, calling Windows Tools API directly via HTTP`);
+            
             try {
-              // Fetch project's terminal port from database
-              const { data: projectData, error: projectError } = await supabase
+              // Fetch MCP API key from database
+              const { data: projectKeys, error: keysError } = await supabase
                 .from('projects')
-                .select('terminal_port')
+                .select('mcp_api_key')
                 .eq('id', projectId)
                 .single();
               
-              if (projectError || !projectData) {
-                throw new Error(`Failed to fetch project data: ${projectError?.message || 'Project not found'}`);
+              if (keysError || !projectKeys || !projectKeys.mcp_api_key) {
+                throw new Error(`Failed to fetch MCP API key: ${keysError?.message || 'Key not found'}`);
               }
               
-              const terminalPort = projectData.terminal_port;
+              // Build container name from project ID (first 8 chars)
+              const projectIdShort = projectId.substring(0, 8);
+              const containerName = `windows-project-${projectIdShort}`;
+              const apiUrl = `http://${containerName}:10018/execute`;
               
-              if (!terminalPort) {
-                throw new Error('Terminal port not configured for this project');
-              }
+              console.log(`📤 Calling ${apiUrl} with tool: ${toolName}`);
               
-              console.log(`🔧 Using terminal port: ${terminalPort}`);
-              console.log(`🔧 Command: ${functionArgs.command}`);
+              // Start a periodic status update to keep stream alive during long tool execution
+              const statusUpdateInterval = setInterval(() => {
+                try {
+                  res.write(`0:${JSON.stringify({
+                    type: 'tool-executing',
+                    toolName: functionName,
+                    elapsed: Date.now() - startTime
+                  })}\n`);
+                  if (res.flush) res.flush();
+                } catch (e) {
+                  clearInterval(statusUpdateInterval);
+                }
+              }, 5000); // Send update every 5 seconds
               
-              // Connect to terminal WebSocket and send command
-              const WebSocket = require('ws');
-              const ws = new WebSocket(`ws://host.docker.internal:${terminalPort}`);
-              
-              await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  ws.close();
-                  reject(new Error('WebSocket connection timeout'));
-                }, 5000);
-                
-                ws.on('open', () => {
-                  clearTimeout(timeout);
-                  console.log(`✅ Connected to terminal WebSocket on port ${terminalPort}`);
-                  
-                  // Send command followed by Enter
-                  ws.send(functionArgs.command + '\r');
-                  console.log(`✅ Command sent: ${functionArgs.command}`);
-                  
-                  // Wait a moment then close
-                  setTimeout(() => {
-                    ws.close();
-                    resolve();
-                  }, 500);
+              // Use built-in http module
+              result = await new Promise((resolve, reject) => {
+                const postData = JSON.stringify({
+                  tool: toolName,
+                  arguments: functionArgs
                 });
-                
-                ws.on('error', (error) => {
-                  clearTimeout(timeout);
+
+                const options = {
+                  hostname: containerName,
+                  port: 10018,
+                  path: '/execute',
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData),
+                    'Authorization': `Bearer ${projectKeys.mcp_api_key}`
+                  },
+                  timeout: 60000
+                };
+
+                const req = http.request(options, (res) => {
+                  let data = '';
+
+                  res.on('data', (chunk) => {
+                    data += chunk;
+                  });
+
+                  res.on('end', () => {
+                    if (res.statusCode !== 200) {
+                      reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                      return;
+                    }
+
+                    try {
+                      const result = JSON.parse(data);
+                      resolve(result);
+                    } catch (e) {
+                      reject(new Error(`Failed to parse response: ${e.message}`));
+                    }
+                  });
+                });
+
+                req.on('error', (error) => {
                   reject(error);
                 });
+
+                req.on('timeout', () => {
+                  req.destroy();
+                  reject(new Error('Request timed out after 60 seconds'));
+                });
+
+                req.write(postData);
+                req.end();
               });
               
-              result = {
-                success: true,
-                output: `Command sent to terminal: ${functionArgs.command}`,
-                message: 'Command sent successfully'
-              };
-              console.log(`✅ Command sent to terminal successfully`);
+              // Clear the status update interval
+              clearInterval(statusUpdateInterval);
+              
+              duration = Date.now() - startTime;
+              
+              console.log(`✅ Tool ${functionName} executed via HTTP API`);
+              console.log(`📊 Result keys:`, Object.keys(result || {}));
+              console.log(`📊 Duration: ${duration}ms`);
+              
             } catch (error) {
-              console.error(`❌ Failed to send command to terminal:`, error.message);
+              console.error(`❌ HTTP API call failed:`, error.message);
               result = {
                 success: false,
                 error: error.message,
-                output: `Failed to send command to terminal: ${error.message}`
+                output: `Failed to call Windows Tools API: ${error.message}`
               };
+              duration = Date.now() - startTime;
             }
           } else {
-            console.log(`🔧 Calling windowsClient.executeTool...`);
-            result = await windowsClient.executeTool(toolName, functionArgs);
+            // Use MCP client (preferred method)
+            console.log(`✅ Using MCP client for tool execution`);
+
+            // Validate windowsClient is properly connected
+            if (!windowsClient.isConnected || !windowsClient.isConnected()) {
+              console.error(`❌ Windows client is not connected!`);
+              const errorResult = {
+                success: false,
+                error: 'Windows client not connected',
+                output: 'Failed to execute tool: Windows client is not connected. Please check the Windows container status.'
+              };
+              
+              // Send error to frontend
+              res.write(`0:${JSON.stringify({
+                type: 'desktop-tool-output',
+                toolCallId: toolCall.id,
+                toolName: functionName,
+                args: functionArgs,
+                output: errorResult.output,
+                status: 'error',
+                duration: 0
+              })}\n`);
+              if (res.flush) res.flush();
+              
+              // Skip to next iteration
+              toolCalls.shift();
+              continue;
+            }
+            
+            // Special handling for send_to_terminal - execute directly via WebSocket
+            if (toolName === 'send_to_terminal') {
+              console.log(`🔧 Sending command directly to terminal via WebSocket...`);
+              try {
+                // Fetch project's terminal port from database
+                const { data: projectData, error: projectError } = await supabase
+                  .from('projects')
+                  .select('terminal_port')
+                  .eq('id', projectId)
+                  .single();
+                
+                if (projectError || !projectData) {
+                  throw new Error(`Failed to fetch project data: ${projectError?.message || 'Project not found'}`);
+                }
+                
+                const terminalPort = projectData.terminal_port;
+                
+                if (!terminalPort) {
+                  throw new Error('Terminal port not configured for this project');
+                }
+                
+                console.log(`🔧 Using terminal port: ${terminalPort}`);
+                console.log(`🔧 Command: ${functionArgs.command}`);
+                
+                // Connect to terminal WebSocket and send command
+                const WebSocket = require('ws');
+                const ws = new WebSocket(`ws://host.docker.internal:${terminalPort}`);
+                
+                await new Promise((resolve, reject) => {
+                  const timeout = setTimeout(() => {
+                    ws.close();
+                    reject(new Error('WebSocket connection timeout'));
+                  }, 5000);
+                  
+                  ws.on('open', () => {
+                    clearTimeout(timeout);
+                    console.log(`✅ Connected to terminal WebSocket on port ${terminalPort}`);
+                    
+                    // Send command followed by Enter
+                    ws.send(functionArgs.command + '\r');
+                    console.log(`✅ Command sent: ${functionArgs.command}`);
+                    
+                    // Wait a moment then close
+                    setTimeout(() => {
+                      ws.close();
+                      resolve();
+                    }, 500);
+                  });
+                  
+                  ws.on('error', (error) => {
+                    clearTimeout(timeout);
+                    reject(error);
+                  });
+                });
+                
+                result = {
+                  success: true,
+                  output: `Command sent to terminal: ${functionArgs.command}`,
+                  message: 'Command sent successfully'
+                };
+                console.log(`✅ Command sent to terminal successfully`);
+              } catch (error) {
+                console.error(`❌ Failed to send command to terminal:`, error.message);
+                result = {
+                  success: false,
+                  error: error.message,
+                  output: `Failed to send command to terminal: ${error.message}`
+                };
+              }
+            } else {
+              console.log(`🔧 Calling windowsClient.executeTool...`);
+              
+              // Add timeout to prevent hanging
+              const TOOL_TIMEOUT = 30000; // 30 seconds
+              const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Tool execution timeout after ${TOOL_TIMEOUT}ms`)), TOOL_TIMEOUT);
+              });
+              
+              try {
+                result = await Promise.race([
+                  windowsClient.executeTool(toolName, functionArgs),
+                  timeoutPromise
+                ]);
+                console.log(`✅ Tool ${functionName} executed successfully`);
+                console.log(`📊 Result keys:`, Object.keys(result || {}));
+                console.log(`📊 Result.success:`, result?.success);
+                console.log(`📊 Result.message length:`, result?.message?.length || 0);
+              } catch (error) {
+                console.error(`❌ Tool execution failed:`, error.message);
+                result = {
+                  success: false,
+                  error: error.message,
+                  output: `Tool execution failed: ${error.message}`
+                };
+              }
+            }
+            
+            duration = Date.now() - startTime;
+            
+            console.log(`📊 Duration: ${duration}ms`);
+            console.log(`📊 Result:`, { success: result.success, hasMessage: !!result.message });
+          }
+        }
+        
+        // BULK AUTO-INJECT: TYPE_TEXT → PRESS_KEY → SCREENSHOT
+        // Execute all three actions immediately, then send ONLY final screenshot to AI
+        // 🚨 CRITICAL: Only trigger if previous action was Ctrl+A (clearing search bar)
+        // This prevents triggering on random typing actions
+        const previousAction = toolCallHistory[toolCallHistory.length - 1];
+        const isPreviousCtrlA = previousAction && previousAction.includes('windows_press_key') && 
+                                previousAction.includes('ctrl+a');
+        
+        if (toolName === 'type_text' && result.success && windowsClient && isPreviousCtrlA) {
+          console.log(`\n${'='.repeat(80)}`);
+          console.log(`⚡ BULK AUTO-INJECT: TYPE → ENTER → SCREENSHOT`);
+          console.log(`   Previous action: Ctrl+A (search bar cleared)`);
+          console.log(`   Typed text: "${functionArgs.text}"`);
+          console.log(`   Executing all actions in bulk...`);
+          console.log(`${'='.repeat(80)}\n`);
+            
+            // 1. Send type_text output to frontend
+            res.write(`0:${JSON.stringify({
+              type: 'desktop-tool-output',
+              toolCallId: toolCall.id,
+              toolName: functionName,
+              args: functionArgs,
+              output: result.output || 'Text typed successfully',
+              status: 'success',
+              duration: duration
+            })}\n`);
+            if (res.flush) res.flush();
+            
+            // Small delay for UI
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // 2. Execute press_key(enter) immediately
+            const enterStartTime = Date.now();
+            const enterResult = await windowsClient.executeTool('press_key', { key: 'enter' });
+            const enterDuration = Date.now() - enterStartTime;
+            
+            console.log(`✅ Auto-injected Enter key press completed`);
+            
+            // Send enter output to frontend
+            res.write(`0:${JSON.stringify({
+              type: 'desktop-tool-output',
+              toolCallId: `auto_enter_${toolCall.id}`,
+              toolName: 'windows_press_key',
+              args: { key: 'enter' },
+              output: 'Enter key pressed (auto-injected)',
+              status: enterResult.success ? 'success' : 'error',
+              duration: enterDuration,
+              timestamp: Date.now(),
+              autoInjected: true
+            })}\n`);
+            if (res.flush) res.flush();
+            
+            // Add to tool call history
+            const enterSignature = `windows_press_key:${Buffer.from(JSON.stringify({ key: 'enter' })).toString('base64')}`;
+            toolCallHistory.push(enterSignature);
+            
+            // Small delay to let Enter take effect
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // 3. Execute screenshot immediately
+            const screenshotStartTime = Date.now();
+            const screenshotResult = await windowsClient.executeTool('take_screenshot', {});
+            const screenshotDuration = Date.now() - screenshotStartTime;
+            
+            console.log(`✅ Auto-injected screenshot completed`);
+            
+            // Send screenshot output to frontend
+            res.write(`0:${JSON.stringify({
+              type: 'desktop-tool-output',
+              toolCallId: `auto_screenshot_${toolCall.id}`,
+              toolName: 'windows_take_screenshot',
+              args: {},
+              output: 'Screenshot captured (auto-injected)',
+              status: screenshotResult.success ? 'success' : 'error',
+              duration: screenshotDuration,
+              timestamp: Date.now(),
+              autoInjected: true
+            })}\n`);
+            if (res.flush) res.flush();
+            
+            // Override result with screenshot result so AI only sees final context
+            // Use a new variable to avoid reassigning const
+            result = screenshotResult;
+            // Set a flag to indicate we're now processing a screenshot
+            const isAutoInjectedScreenshot = true;
+            
+            console.log(`✅ Bulk auto-inject complete. AI will receive ONLY final screenshot context.`);
+            
+            // Continue to screenshot handling below (don't skip it)
+            // The code below will handle sending screenshot data to AI
+          } else {
+            // Normal tool execution - send output to frontend
+            let toolOutput = result.output || 'Tool executed successfully';
+            if (toolName === 'take_screenshot' && result.message) {
+              toolOutput = 'Screenshot captured successfully';
+            }
+            
+            console.log(`📤 Sending desktop-tool-output event`);
+            res.write(`0:${JSON.stringify({
+              type: 'desktop-tool-output',
+              toolCallId: toolCall.id,
+              toolName: functionName,
+              args: functionArgs,
+              output: toolOutput,
+              status: result.success ? 'success' : 'error',
+              duration: duration
+            })}\n`);
+            if (res.flush) res.flush();
+            console.log(`✅ desktop-tool-output sent`);
           }
           
-          const duration = Date.now() - startTime;
-          
-          console.log(`✅ Tool ${functionName} executed successfully`);
-          console.log(`📊 Result:`, { success: result.success, hasMessage: !!result.message });
-          
-          // Send tool output
-          // For screenshots, don't send the huge base64 data in the output
-          let toolOutput = result.output || 'Tool executed successfully';
-          if (toolName === 'take_screenshot' && result.message) {
-            toolOutput = 'Screenshot captured successfully';
+          // Inject correction message if workflow shortcut was detected
+          if (shouldCorrectWorkflow && correctionMessage) {
+            console.log(`📤 Injecting workflow correction message`);
+            res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: correctionMessage })}\n`);
+            if (res.flush) res.flush();
+            
+            // Add to messages so AI sees it in context
+            messages.push({
+              role: 'assistant',
+              content: correctionMessage
+            });
           }
-          
-          console.log(`📤 Sending desktop-tool-output event`);
-          res.write(`0:${JSON.stringify({
-            type: 'desktop-tool-output',
-            toolCallId: toolCall.id,
-            toolName: functionName,
-            args: functionArgs,
-            output: toolOutput,
-            status: result.success ? 'success' : 'error',
-            duration: duration
-          })}\n`);
-          if (res.flush) res.flush();
-          console.log(`✅ desktop-tool-output sent`);
           
           // Handle screenshot data
           // Check for imageData in result.message (new format) or result.imageData (old format)
           const imageData = result.message || result.imageData;
-          if (toolName === 'take_screenshot' && imageData) {
+          // Check if this is a screenshot (either direct call or auto-injected after type_text)
+          const isScreenshot = toolName === 'take_screenshot' || (toolName === 'type_text' && imageData);
+          if (isScreenshot && imageData) {
             console.log(`📤 Sending screenshot-data event`);
             const screenshotId = `screenshot_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
             
@@ -1782,90 +3607,326 @@ END OF CUSTOM MODE
             console.log(`✅ screenshot-data sent`);
           }
           
+          // Add delay for UI actions to let the screen update
+          if (toolName === 'click' || toolName === 'double_click' || toolName === 'press_key') {
+            console.log(`⏱️  Waiting 2 seconds for UI to update after ${toolName}...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
           console.log(`✅ Tool execution complete, requesting single continuation for analysis...`);
           
           // Build continuation request with tool result (ONE TIME ONLY - NO LOOP)
-          // Format screenData as readable text for screenshots
+          // Format screenData as ULTRA-COMPACT text for screenshots
           let screenDataText = '';
-          if (toolName === 'take_screenshot' && result.windowsAPI) {
-            // Result structure: windowsAPI, ocr, size, mousePosition are directly on result
+          let screenNotChangedWarning = null; // Declare at function scope so it's accessible later
+          
+          // Check if this is a screenshot (either direct call or auto-injected after type_text)
+          const isScreenshotForContinuation = (toolName === 'take_screenshot' || (toolName === 'type_text' && result.windowsAPI)) && result.windowsAPI;
+          if (isScreenshotForContinuation) {
             const windowsAPI = result.windowsAPI;
             const ocr = result.ocr;
             const size = result.size;
             const mousePos = result.mousePosition;
+            let allElements = result.ui_elements || result.uiElements || windowsAPI.elements || [];
             
-            // Debug: Log the actual structure
-            console.log(`🔍 DEBUG: Checking OCR data structure:`);
-            console.log(`   ocr exists: ${!!ocr}`);
-            console.log(`   ocr.textElements exists: ${!!ocr?.textElements}`);
-            console.log(`   ocr.textElements length: ${ocr?.textElements?.length || 0}`);
-            console.log(`   ocr.detectedElements length: ${ocr?.detectedElements?.length || 0}`);
-            console.log(`   ocr keys:`, ocr ? Object.keys(ocr) : 'null');
-            if (ocr && ocr.textElements && ocr.textElements.length > 0) {
-              console.log(`   First OCR element:`, JSON.stringify(ocr.textElements[0]));
+            // 🚨 FILTER OUT SEARCH BAR UI ELEMENTS - Force AI to use OCR TEXT only for website searches
+            // Remove UI elements with "Search" in name that are ComboBox, Button, or Edit (y > 100 and y < 1000)
+            // This forces the AI to click on OCR TEXT coordinates, not UI element boundaries
+            allElements = allElements.filter(el => {
+              const isSearchElement = el.name && el.name.toLowerCase().includes('search');
+              const isWebsiteArea = el.y > 100 && el.y < 1000;
+              const isInputType = ['ComboBox', 'Button', 'Edit', 'Text'].includes(el.type || el.control_type_name);
+              
+              // Keep element if it's NOT a search input in website area
+              // Remove search UI elements in website area to force OCR TEXT usage
+              if (isSearchElement && isWebsiteArea && isInputType) {
+                console.log(`🚫 Filtered out search UI element: ${el.name} at (${el.x}, ${el.y}) - forcing OCR TEXT usage`);
+                return false; // Remove this element
+              }
+              return true; // Keep this element
+            });
+            
+            // 🚨 CRITICAL: Store screenshot data globally for text-based tool call fallback
+            // This allows the parser to look up element names and extract coordinates
+            global.lastScreenshotElements = allElements;
+            
+            // 🚨 CRITICAL: Store OCR data globally for OCR-first coordinate lookup
+            // OCR text should be checked FIRST before UI elements
+            global.lastScreenshotOCR = ocr?.textElements || [];
+            
+            console.log(`💾 Stored ${allElements.length} UI elements globally for coordinate lookup`);
+            console.log(`💾 Stored ${global.lastScreenshotOCR.length} OCR text elements globally for OCR-first lookup`);
+            
+            // 🔍 OCR-FIRST SEARCH HELPER: Find "Search" in OCR TEXT for website search bars
+            // This helps the AI prioritize OCR TEXT coordinates over UI element coordinates
+            const ocrSearchMatches = global.lastScreenshotOCR.filter(item => {
+              const text = (item.text || '').toLowerCase();
+              return text.includes('search');
+            }).map(match => ({
+              text: match.text,
+              x: match.center?.x || match.position?.x || 0,  // Use CENTER first (not left edge)
+              y: match.center?.y || match.position?.y || 0   // Use CENTER first (not top edge)
+            })).filter(match => match.y > 100 && match.y < 1000); // Website area only
+            
+            if (ocrSearchMatches.length > 0) {
+              console.log(`🔍 OCR-FIRST: Found ${ocrSearchMatches.length} "Search" in OCR TEXT (website area):`);
+              ocrSearchMatches.forEach(match => {
+                console.log(`   - "${match.text}" at (${match.x}, ${match.y}) ✅ USE THIS FOR WEBSITE SEARCH`);
+              });
             }
             
-            screenDataText = `\n\n📊 COMPLETE SCREENSHOT DATA (READ EVERYTHING CAREFULLY):
-
-🖥️ SCREEN INFORMATION:
-- Resolution: ${size?.width || 0}x${size?.height || 0}
-- Mouse Position: (${mousePos?.x || 0}, ${mousePos?.y || 0})
-
-🪟 ALL WINDOWS API ELEMENTS (${windowsAPI?.elements?.length || 0} total):`;
+            // ULTRA-COMPACT FORMAT - Reduce from ~3000 tokens to ~300 tokens
+            screenDataText = `\n\nSCREEN: ${size?.width || 0}x${size?.height || 0}, Mouse: (${mousePos?.x || 0}, ${mousePos?.y || 0})\n\n`;
             
-            // List ALL Windows API elements with full details
-            if (windowsAPI?.elements && windowsAPI.elements.length > 0) {
-              windowsAPI.elements.forEach((el, idx) => {
-                screenDataText += `\n${idx + 1}. [${el.type}] "${el.name || 'Unknown'}"`;
-                screenDataText += `\n   Position: (${el.x}, ${el.y}) Center: (${el.center_x}, ${el.center_y})`;
-                screenDataText += `\n   Size: ${el.width}x${el.height}`;
-                if (el.isMaximized !== undefined) screenDataText += `\n   Maximized: ${el.isMaximized}`;
-                if (el.isMinimized !== undefined) screenDataText += `\n   Minimized: ${el.isMinimized}`;
-                if (el.hasCloseButton !== undefined) screenDataText += `\n   Has Close Button: ${el.hasCloseButton}`;
-                if (el.hasMaximizeButton !== undefined) screenDataText += `\n   Has Maximize Button: ${el.hasMaximizeButton}`;
-                if (el.hasMinimizeButton !== undefined) screenDataText += `\n   Has Minimize Button: ${el.hasMinimizeButton}`;
+            // Group elements by type for extreme compactness
+            const windows = allElements.filter(el => (el.type || el.control_type_name) === 'Window');
+            // Desktop icons have control_type_name "ListItem" and are in the desktop area (y < 1000)
+            const desktopIcons = allElements.filter(el => 
+              ((el.type || el.control_type_name) === 'ListItem' || (el.type || el.control_type_name) === 'Desktop Icon') && 
+              el.y < 1000 && el.name && el.name !== ''
+            );
+            const buttons = allElements.filter(el => (el.type || el.control_type_name) === 'Button');
+            const textFields = allElements.filter(el => (el.type || el.control_type_name) === 'Text' || (el.type || el.control_type_name) === 'Edit');
+            
+            // Windows (most important)
+            if (windows.length > 0) {
+              screenDataText += `WINDOWS:\n`;
+              windows.forEach(w => {
+                screenDataText += `- "${w.name}" at (${w.center_x}, ${w.center_y})`;
+                if (w.isMaximized) screenDataText += ` [MAX]`;
+                screenDataText += `\n`;
               });
             } else {
-              screenDataText += '\n(No Windows API elements found)';
+              screenDataText += `WINDOWS: Desktop (no windows open)\n`;
             }
             
-            // Use textElements or detectedElements instead of elements
-            const ocrElements = ocr?.textElements || ocr?.detectedElements || [];
-            screenDataText += `\n\n📝 ALL OCR TEXT ELEMENTS (${ocrElements.length} total):`;
+            // Desktop Icons (if on desktop) - SEND ALL
+            if (desktopIcons.length > 0) {
+              screenDataText += `\nDESKTOP ICONS (${desktopIcons.length} total):\n`;
+              desktopIcons.forEach(icon => {
+                screenDataText += `- "${icon.name}" at (${icon.center_x}, ${icon.center_y})\n`;
+              });
+            }
+            
+            // Important UI elements (buttons, text fields) - SEND ALL
+            const importantElements = [...buttons, ...textFields];
+            if (importantElements.length > 0) {
+              screenDataText += `\nKEY ELEMENTS (${importantElements.length} total):\n`;
+              importantElements.forEach(el => {
+                const type = el.type || el.control_type_name;
+                screenDataText += `- [${type}] "${el.name}" at (${el.center_x}, ${el.center_y})\n`;
+              });
+            }
+            
+            // 🔍 OCR-FIRST SEARCH RESULTS: Show "Search" matches from OCR TEXT prominently
+            // This helps the AI see OCR TEXT CENTER coordinates FIRST before UI elements
+            if (ocrSearchMatches.length > 0) {
+              screenDataText += `\n🔍 WEBSITE SEARCH BAR (OCR TEXT CENTER - USE THESE COORDINATES):\n`;
+              ocrSearchMatches.forEach(match => {
+                screenDataText += `- "${match.text}" at (${match.x}, ${match.y}) ✅ OCR TEXT CENTER\n`;
+              });
+              screenDataText += `⚠️  DO NOT use UI element coordinates for website search bars!\n`;
+            }
+            
+            // OCR Text - SEND ALL (no filtering)
+            const ocrElements = (ocr?.textElements || ocr?.detectedElements || [])
+            
             if (ocrElements.length > 0) {
-              ocrElements.forEach((text, idx) => {
-                screenDataText += `\n${idx + 1}. "${text.text}"`;
-                // Handle both flat and nested position/size structures
-                const x = text.x !== undefined ? text.x : text.position?.x;
-                const y = text.y !== undefined ? text.y : text.position?.y;
-                const width = text.width !== undefined ? text.width : text.size?.width;
-                const height = text.height !== undefined ? text.height : text.size?.height;
-                const centerX = text.center_x !== undefined ? text.center_x : text.center?.x;
-                const centerY = text.center_y !== undefined ? text.center_y : text.center?.y;
+              screenDataText += `\nTEXT (${ocrElements.length} total):\n`;
+              ocrElements.forEach(text => {
+                const x = text.center?.x || text.position?.x || text.x;
+                const y = text.center?.y || text.position?.y || text.y;
+                const conf = text.confidence ? ` (${(text.confidence * 100).toFixed(0)}%)` : '';
+                screenDataText += `- "${text.text}" at (${x}, ${y})${conf}\n`;
+              });
+            }
+            
+            console.log(`📊 Formatted COMPLETE screen data for AI (${screenDataText.length} chars, ~${Math.ceil(screenDataText.length / 4)} tokens)`);
+            console.log(`   ✅ ALL ${desktopIcons.length} desktop icons included`);
+            console.log(`   ✅ ALL ${importantElements.length} UI elements included`);
+            console.log(`   ✅ ALL ${ocrElements.length} OCR text elements included`);
+            
+            // 🚨 CRITICAL: Compare with previous screenshot to detect if screen hasn't changed
+            
+            if (previousScreenshotData && toolCallIteration > 1) {
+              console.log(`\n${'='.repeat(80)}`);
+              console.log(`🔍 COMPARING SCREENSHOTS - Checking if screen changed`);
+              console.log(`${'='.repeat(80)}\n`);
+              
+              // Extract key data for comparison
+              const currentData = {
+                windowName: windows.length > 0 ? windows[0].name : 'Desktop',
+                textElements: ocrElements.map(t => t.text).sort().join('|'),
+                keyElements: importantElements.map(el => el.name).sort().join('|'),
+                elementCount: allElements.length
+              };
+              
+              console.log(`📊 Current screenshot data:`);
+              console.log(`   Window: "${currentData.windowName}"`);
+              console.log(`   Text elements: ${ocrElements.length} items`);
+              console.log(`   Key elements: ${importantElements.length} items`);
+              console.log(`   Total elements: ${currentData.elementCount}`);
+              
+              console.log(`\n📊 Previous screenshot data:`);
+              console.log(`   Window: "${previousScreenshotData.windowName}"`);
+              console.log(`   Text elements: ${previousScreenshotData.textElements.split('|').filter(t => t).length} items`);
+              console.log(`   Key elements: ${previousScreenshotData.keyElements.split('|').filter(k => k).length} items`);
+              console.log(`   Total elements: ${previousScreenshotData.elementCount}`);
+              
+              // Calculate similarity
+              const windowMatch = currentData.windowName === previousScreenshotData.windowName;
+              const textMatch = currentData.textElements === previousScreenshotData.textElements;
+              const elementsMatch = currentData.keyElements === previousScreenshotData.keyElements;
+              const countMatch = Math.abs(currentData.elementCount - previousScreenshotData.elementCount) <= 2; // Allow 2 element difference
+              
+              console.log(`\n🔍 Comparison results:`);
+              console.log(`   Window match: ${windowMatch ? '✅ YES' : '❌ NO'}`);
+              console.log(`   Text match: ${textMatch ? '✅ YES' : '❌ NO'}`);
+              console.log(`   Elements match: ${elementsMatch ? '✅ YES' : '❌ NO'}`);
+              console.log(`   Count match: ${countMatch ? '✅ YES' : '❌ NO'}`);
+              
+              // Track consecutive identical screenshots
+              if (!global.identicalScreenshotCount) {
+                global.identicalScreenshotCount = 0;
+              }
+              
+              // If all match, screen hasn't changed
+              if (windowMatch && textMatch && elementsMatch && countMatch) {
+                global.identicalScreenshotCount++;
+                console.log(`\n⚠️  SCREEN HASN'T CHANGED - Identical screenshot #${global.identicalScreenshotCount}`);
                 
-                screenDataText += `\n   Position: (${x}, ${y})`;
-                screenDataText += `\n   Size: ${width}x${height}`;
-                screenDataText += `\n   Center: (${centerX}, ${centerY})`;
-                if (text.confidence !== undefined) screenDataText += `\n   Confidence: ${(text.confidence * 100).toFixed(0)}%`;
-              });
-            } else {
-              screenDataText += '\n(No text detected)';
+                // Trigger repetition detection after 2 identical screenshots (not 3)
+                if (global.identicalScreenshotCount >= 2) {
+                  console.log(`\n🚨 REPETITION DETECTED - 2 identical screenshots in a row!`);
+                  console.log(`   Triggering context reset to break the loop\n`);
+                  
+                  // Reset the counter
+                  global.identicalScreenshotCount = 0;
+                  
+                  // Trigger context reset
+                  const recentActions = toolCallHistory.slice(-5).map(sig => {
+                    const parts = sig.split(':');
+                    const tool = parts[0];
+                    const argsStr = parts.slice(1).join(':');
+                    try {
+                      const args = JSON.parse(argsStr);
+                      if (tool === 'windows_click_mouse') {
+                        return `clicked (${args.x}, ${args.y})`;
+                      } else if (tool === 'windows_type_text') {
+                        return `typed "${args.text}"`;
+                      } else if (tool === 'windows_press_key') {
+                        return `pressed ${args.key}`;
+                      }
+                    } catch (e) {}
+                    return tool.replace('windows_', '');
+                  }).join(', ');
+                  
+                  const summary = `Previous actions: ${recentActions}. Screen hasn't changed - your actions aren't working. Try a DIFFERENT approach.`;
+                  
+                  // Reset messages
+                  messages.length = 0;
+                  messages.push({
+                    role: 'system',
+                    content: modeSystemPrompt
+                  });
+                  messages.push({
+                    role: 'user',
+                    content: `${history[0]?.content || message}\n\nContext: ${summary}\n\nThe screen is identical to before. Your last action didn't work. Try clicking a DIFFERENT element or use a DIFFERENT approach.`
+                  });
+                  
+                  // Force a screenshot
+                  toolCalls.length = 0;
+                  toolCalls.push({
+                    id: `identical_reset_${Date.now()}`,
+                    type: 'function',
+                    function: {
+                      name: 'windows_take_screenshot',
+                      arguments: '{}'
+                    }
+                  });
+                  
+                  const resetMessage = `\n\n┃ Screen unchanged - trying different approach...\n`;
+                  res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+                  if (res.flush) res.flush();
+                  
+                  console.log(`✅ Context reset triggered by identical screenshots`);
+                  
+                  // Continue with the screenshot
+                  continue;
+                }
+              } else {
+                // Screen changed - reset counter
+                global.identicalScreenshotCount = 0;
+              }
+              
+              if (windowMatch && textMatch && elementsMatch && countMatch) {
+                console.log(`\n⚠️  SCREEN HASN'T CHANGED - ACTION FAILED!`);
+                console.log(`   The screen looks identical to the previous screenshot`);
+                console.log(`   This means the last action didn't work`);
+                console.log(`   AI needs to try a different approach\n`);
+                console.log(`${'='.repeat(80)}\n`);
+                
+                // Store warning message to add after conversationMessages is created
+                screenNotChangedWarning = {
+                  role: 'system',
+                  content: `🚨 WARNING: SCREEN HASN'T CHANGED!
+
+The current screenshot is IDENTICAL to the previous one:
+- Same window: "${currentData.windowName}"
+- Same text elements
+- Same UI elements
+
+This means your last action DID NOT WORK!
+
+WHAT TO DO:
+1. ❌ DO NOT repeat the same action
+2. ❌ DO NOT say "Done" - the task is NOT complete
+3. ✅ Try clicking a DIFFERENT element
+4. ✅ Try a DIFFERENT coordinate
+5. ✅ Try double-clicking instead of single-clicking
+6. ✅ Try pressing a different key
+
+REMEMBER: If the screen looks the same, your action FAILED. Try something different!`
+                };
+                
+                console.log(`✅ Prepared warning message to inject into conversation`);
+                
+                // Also send a visible message to the user
+                const userWarning = `\n\nScreen hasn't changed - trying different approach...\n`;
+                res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: userWarning })}\n`);
+                if (res.flush) res.flush();
+              } else {
+                console.log(`\n✅ SCREEN HAS CHANGED - ACTION SUCCEEDED!`);
+                console.log(`   The screen is different from the previous screenshot`);
+                console.log(`   The last action worked correctly\n`);
+                console.log(`${'='.repeat(80)}\n`);
+              }
+            } else if (toolCallIteration === 1) {
+              console.log(`ℹ️  First screenshot - no comparison needed`);
             }
             
-            screenDataText += `\n\n🎯 SUMMARY BY TYPE:`;
-            if (windowsAPI?.elements) {
-              const types = {};
-              windowsAPI.elements.forEach(el => {
-                types[el.type] = (types[el.type] || 0) + 1;
-              });
-              Object.entries(types).forEach(([type, count]) => {
-                screenDataText += `\n- ${type}: ${count}`;
-              });
-            }
+            // Store current screenshot data for next comparison
+            previousScreenshotData = {
+              windowName: windows.length > 0 ? windows[0].name : 'Desktop',
+              textElements: (ocr?.textElements || ocr?.detectedElements || [])
+                .filter(t => !t.confidence || t.confidence > 0.7)
+                .slice(0, 10)
+                .map(t => t.text)
+                .sort()
+                .join('|'),
+              keyElements: [...buttons, ...textFields]
+                .slice(0, 5)
+                .map(el => el.name)
+                .sort()
+                .join('|'),
+              elementCount: allElements.length
+            };
             
-            console.log(`📊 Formatted COMPLETE screen data for AI (${screenDataText.length} chars)`);
+            console.log(`💾 Stored current screenshot data for next comparison`);
           }
           
+          // Build conversation messages for continuation request
+          // OpenRouter requires the full conversation including assistant's tool_calls
           const conversationMessages = [
             ...messages,
             {
@@ -1876,6 +3937,7 @@ END OF CUSTOM MODE
             {
               role: 'tool',
               tool_call_id: toolCall.id,
+              name: toolCall.function.name,
               content: toolName === 'take_screenshot' && screenDataText 
                 ? screenDataText
                 : JSON.stringify({
@@ -1885,18 +3947,119 @@ END OF CUSTOM MODE
             }
           ];
           
+          // Update messages array for next iteration
+          messages.push({
+            role: 'assistant',
+            content: initialText || null,
+            tool_calls: [toolCall]
+          });
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: toolCall.function.name,
+            content: toolName === 'take_screenshot' && screenDataText 
+              ? screenDataText
+              : JSON.stringify({
+                  success: result.success,
+                  message: result.output || result.message || 'Tool executed successfully'
+                })
+          });
+          
+          // Add screen not changed warning if detected
+          if (screenNotChangedWarning) {
+            conversationMessages.push(screenNotChangedWarning);
+            contextTokenCount += estimateTokens(screenNotChangedWarning.content);
+            console.log(`✅ Injected warning message into conversation`);
+            console.log(`📊 Context size after warning: ~${contextTokenCount} tokens`);
+          }
+          
+          // Update context token count with new messages
+          contextTokenCount += estimateTokens(initialText || '');
+          contextTokenCount += estimateTokens((toolName === 'take_screenshot' || (toolName === 'type_text' && screenDataText)) && screenDataText ? screenDataText : JSON.stringify({ success: result.success, message: result.output || result.message || 'Tool executed successfully' }));
+          
+          console.log(`📊 Context size after tool execution: ~${contextTokenCount} tokens`);
+          
           // For screenshots, add a system reminder to describe what they see
-          const isAfterScreenshot = toolName === 'take_screenshot';
+          // Check if this is a screenshot (either direct call or auto-injected after type_text)
+          const isAfterScreenshot = toolName === 'take_screenshot' || (toolName === 'type_text' && screenDataText);
+          const isAfterAction = ['click_mouse', 'type_text', 'press_key'].includes(toolName);
+          
+          console.log(`🔍 Tool execution complete: toolName=${toolName}, isAfterScreenshot=${isAfterScreenshot}, isAfterAction=${isAfterAction}, toolCallIteration=${toolCallIteration}`);
+          
+          // Build action history summary to maintain context
+          const actionHistory = toolCallHistory.slice(-5).map(sig => {
+            const { tool, args } = parseToolSignature(sig);
+            if (tool === 'windows_click_mouse') {
+              return `Clicked at (${args.x}, ${args.y})`;
+            } else if (tool === 'windows_type_text') {
+              return `Typed "${args.text}"`;
+            } else if (tool === 'windows_press_key') {
+              return `Pressed ${args.key}`;
+            } else if (tool === 'windows_take_screenshot') {
+              return `Took screenshot`;
+            }
+            return tool;
+          }).join(' → ');
+          
+          const contextReminder = actionHistory ? `\n\n🔄 ACTIONS COMPLETED SO FAR:\n${actionHistory}\n\nCRITICAL: DO NOT REPEAT ANY OF THESE ACTIONS. Progress forward to the NEXT step.` : '';
           
           if (isAfterScreenshot) {
-            conversationMessages.push({
+            console.log(`📋 Adding system message: Describe screenshot data and action format reminder`);
+            const systemMessage = {
               role: 'system',
-              content: 'IMPORTANT: You just received screenshot data. Your next response MUST start with text describing what you see (windows, buttons, coordinates, text) before calling any tool. Do not skip this step.'
-            });
+              content: `Screenshot received.${contextReminder}
+
+🚨 CRITICAL ANTI-HALLUCINATION RULES:
+1. ONLY describe what EXISTS in the screenshot data sections (WINDOWS, TEXT, KEY ELEMENTS, DESKTOP ICONS)
+2. If TEXT section doesn't mention "video thumbnails" → DO NOT say "video thumbnails"
+3. If TEXT section doesn't mention "search results" → DO NOT say "search results"
+4. NEVER infer, assume, or guess content - ONLY describe what's explicitly in the data
+5. Quote EXACT text from TEXT section (e.g., "Search", "Home", "Q")
+
+🚨 CRITICAL FORMATTING RULES - NEVER SHOW COORDINATES:
+6. NEVER show coordinates in descriptions (e.g., say "YouTube search bar" NOT "search bar at (651, 155)")
+7. NEVER say just "search bar" - ALWAYS specify: "browser address bar" or "YouTube search bar"
+8. ALWAYS mention BOTH search bars when website is loaded: "browser address bar" AND "YouTube search bar"
+9. Coordinates are for internal use ONLY - NEVER include them in your descriptions
+
+❌ WRONG: "I can see the search bar at (651, 155)"
+✅ CORRECT: "I can see the YouTube search bar"
+
+❌ WRONG: "I can see the search bar"
+✅ CORRECT: "I can see the browser address bar and the YouTube search bar"
+
+Example: "Currently focused window: YouTube - Google Chrome. I can see text: 'Search', 'Home'. Elements: Browser address bar, YouTube search bar, Home button."
+
+DO NOT make up content. DO NOT guess content. ONLY describe what EXISTS in the data sections.
+DO NOT show coordinates. DO NOT say just "search bar" - specify which one.
+
+Analyze data → Quote EXACT text + Describe ONLY existing elements (NO coordinates) → Execute ONE action → Continue until ENTIRE task complete.
+
+NEXT: State focused window, quote EXACT visible text, describe ONLY elements that exist in data (NO coordinates), then execute next action.`
+            };
+            conversationMessages.push(systemMessage);
+            contextTokenCount += estimateTokens(systemMessage.content);
+          } else if (isAfterAction) {
+            // After an action, add a system message to remind AI to take a screenshot
+            // But DON'T force it - let the continuation request handle it naturally
+            const isTypeText = toolName === 'type_text';
+            
+            if (!isTypeText) {
+              console.log(`📋 Adding system message: Action completed, AI should take screenshot`);
+              conversationMessages.push({
+                role: 'system',
+                content: `Action completed. Take a screenshot NOW to verify the action worked and see the current state.`
+              });
+            }
+          } else {
+            console.log(`📋 No system message added (isAfterAction=${isAfterAction}, toolCallIteration=${toolCallIteration})`);
           }
+          
+          console.log(`📊 Context size after system messages: ~${contextTokenCount} tokens`);
           
           console.log(`📤 Requesting AI continuation (WITH tools for multi-step)`);
           
+          try {
           // Request continuation WITH tools to allow more tool calls
           const continuationResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -1913,7 +4076,8 @@ END OF CUSTOM MODE
               tools: tools && tools.length > 0 ? tools : undefined, // Include tools for multi-step
               // Don't set tool_choice to let model follow system prompt
               parallel_tool_calls: false
-            })
+            }),
+            signal: abortController.signal // Use abort controller
           });
           
           if (continuationResponse.ok) {
@@ -1945,8 +4109,40 @@ END OF CUSTOM MODE
                     if (contDelta?.content) {
                       contChars += contDelta.content.length;
                       contText += contDelta.content;
-                      console.log(`📝 AI Response: "${contDelta.content}"`);
-                      res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: contDelta.content })}\n`);
+                      contextTokenCount += estimateTokens(contDelta.content); // Track AI response tokens
+                      
+                      // FILTER: Detect "Stopped" messages and trigger context reset
+                      let filteredContent = contDelta.content;
+                      const forbiddenPhrases = [
+                        'stopped to prevent repeating',
+                        'action completed. stopped'
+                      ];
+                      
+                      const lowerContent = filteredContent.toLowerCase();
+                      let shouldTriggerReset = false;
+                      for (const phrase of forbiddenPhrases) {
+                        if (lowerContent.includes(phrase)) {
+                          console.log(`\n⚠️  DETECTED FORBIDDEN PHRASE: "${phrase}" in AI response`);
+                          console.log(`   Original text: "${filteredContent}"`);
+                          console.log(`   🔄 Will trigger context reset to break the loop`);
+                          shouldTriggerReset = true;
+                          break;
+                        }
+                      }
+                      
+                      // Stream the content (don't block it, let AI learn)
+                      if (filteredContent) {
+                        console.log(`📝 AI Response: "${filteredContent}"`);
+                        res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: filteredContent })}\n`);
+                      }
+                      
+                      // If we detected forbidden phrase, trigger context reset
+                      if (shouldTriggerReset) {
+                        console.log(`📤 Triggering context reset due to "Stopped" phrase`);
+                        shouldResetAfterResponse = true; // This will trigger reset after response completes
+                      }
+                      
+                      // Context limit check removed - only reset on "Stopped" phrase or critical limit
                     }
                     
                     // Check for new tool calls
@@ -1982,11 +4178,67 @@ END OF CUSTOM MODE
             }
             
             console.log(`✅ Continuation complete: ${contChars} chars generated`);
+            console.log(`🔍 DEBUG: contText length = ${contText.length}, newToolCalls length = ${newToolCalls.length}`);
+            console.log(`🔍 DEBUG: contText = "${contText}"`);
             
-            // Detect text repetition (infinite loops)
+            // Check for text-based tool calls in continuation text
+            // ALWAYS check, even if there are structured tool calls, because AI might generate both
+            if (contText) {
+              console.log(`🔍 Checking for text-based tool calls in continuation text (${contText.length} chars)`);
+              console.log(`   Text preview: "${contText.substring(0, 200)}..."`);
+              console.log(`   Existing structured tool calls: ${newToolCalls.length}`);
+              
+              const { extractToolCall, normalizeToolName } = require('./text-tool-call-parser');
+              const toolCallMatch = extractToolCall(contText);
+              
+              if (toolCallMatch) {
+                console.log(`🔍 DETECTED TEXT-BASED TOOL CALL IN CONTINUATION: ${toolCallMatch.functionName}`);
+                console.log(`   Args:`, toolCallMatch.args);
+                console.log(`   Full match: "${toolCallMatch.fullMatch}"`);
+                
+                const normalizedName = normalizeToolName(toolCallMatch.functionName);
+                
+                // Check if this is explicit syntax (should be hidden) or natural language (should be kept)
+                const explicitSyntaxPattern = /\[Calls?:\s*([a-zA-Z_][a-zA-Z0-9_]*)\((\{[^}]*\}|[^)]*)\)\]/i;
+                const isExplicitSyntax = explicitSyntaxPattern.test(toolCallMatch.fullMatch);
+                
+                if (isExplicitSyntax) {
+                  console.log(`📤 Sending text-replace event to hide explicit syntax`);
+                  const cleanedText = toolCallMatch.textBefore + (toolCallMatch.textAfter ? ' ' + toolCallMatch.textAfter : '');
+                  res.write(`0:${JSON.stringify({ 
+                    type: 'text-replace', 
+                    text: cleanedText 
+                  })}\n`);
+                  if (res.flush) res.flush();
+                  contText = cleanedText;
+                }
+                
+                // Convert text-based tool call to structured format
+                newToolCalls.push({
+                  id: `text_call_cont_${toolCallIteration}_${Date.now()}`,
+                  type: 'function',
+                  function: {
+                    name: normalizedName,
+                    arguments: JSON.stringify(toolCallMatch.args)
+                  },
+                  _fromText: true,
+                  _textBefore: toolCallMatch.textBefore,
+                  _textAfter: toolCallMatch.textAfter
+                });
+                
+                console.log(`✅ Converted continuation text tool call to structured format: ${normalizedName}`);
+                console.log(`   Total tool calls now: ${newToolCalls.length}`);
+              } else {
+                console.log(`   No text-based tool call detected in continuation text`);
+              }
+            } else {
+              console.log(`   Skipping text-based detection: contText is empty`);
+            }
+            
+            // Detect text repetition (infinite loops) - RELAXED THRESHOLD
             if (contText.length > 100) {
-              // Check if the same phrase is repeated many times
-              const phrases = contText.match(/(.{20,}?)\1{5,}/g); // Find any 20+ char phrase repeated 5+ times
+              // Check if the same phrase is repeated many times (increased from 5 to 10)
+              const phrases = contText.match(/(.{20,}?)\1{10,}/g); // Find any 20+ char phrase repeated 10+ times
               if (phrases) {
                 console.log(`⚠️ TEXT REPETITION DETECTED: AI is stuck in a loop`);
                 console.log(`   Repeated phrase: "${phrases[0].substring(0, 50)}..."`);
@@ -1994,18 +4246,140 @@ END OF CUSTOM MODE
                 break; // Stop the loop
               }
               
-              // Check if text is too long (likely stuck)
-              if (contText.length > 5000) {
+              // Check if text is too long (likely stuck) - INCREASED LIMIT
+              if (contText.length > 10000) {
                 console.log(`⚠️ EXCESSIVE TEXT DETECTED: ${contText.length} characters generated`);
                 console.log(`   AI may be stuck in a loop - stopping iteration`);
                 break;
               }
             }
             
-            // Track consecutive screenshots
+            // Update for next iteration
+            initialText = contText;
+            const previousToolCalls = toolCalls; // Save previous tool calls
+            const justExecutedToolCallId = previousToolCalls.length > 0 ? previousToolCalls[0].id : null;
+            
+            // 🚨 CRITICAL: Remove the tool call we just executed from the array
+            if (toolCalls.length > 0) {
+              console.log(`🗑️  Removing executed tool call from queue: ${toolCalls[0].function.name} (id: ${toolCalls[0].id})`);
+              toolCalls.shift(); // Remove the first element
+            }
+            
+            // 🚨 CRITICAL FIX: Filter out tool calls that have the SAME ID as the one we just executed
+            // OR that have already been executed before
+            // This prevents the infinite loop where OpenRouter returns the same tool call repeatedly
+            const newToolCallsFiltered = newToolCalls.filter(tc => {
+              if (!tc || !tc.function.name) return false;
+              
+              // Skip if this tool call ID has already been executed
+              if (executedToolCallIds.has(tc.id)) {
+                console.log(`\n🚨 FILTERED OUT ALREADY EXECUTED TOOL CALL ID: ${tc.id}`);
+                console.log(`   Tool: ${tc.function.name}`);
+                console.log(`   This tool call was already executed - skipping to prevent infinite loop`);
+                return false;
+              }
+              
+              // Skip if this is the same tool call ID we just executed
+              if (justExecutedToolCallId && tc.id === justExecutedToolCallId) {
+                console.log(`\n🚨 FILTERED OUT DUPLICATE TOOL CALL ID: ${tc.id}`);
+                console.log(`   Tool: ${tc.function.name}`);
+                console.log(`   This tool call was just executed - skipping to prevent infinite loop`);
+                return false;
+              }
+              
+              return true;
+            });
+            
+            // Add the filtered new tool calls to the queue
+            toolCalls.push(...newToolCallsFiltered);
+            
+            console.log(`📊 After filtering: ${toolCalls.length} tool call(s) in queue`);
+            if (toolCalls.length > 0) {
+              console.log(`   Next tool calls:`, toolCalls.map(tc => `${tc.function.name} (id: ${tc.id})`));
+            }
+            
+            // 🚨 CRITICAL: Check if AI said "Done" in the continuation text
+            // This indicates the task is complete and we should exit the loop
+            const donePattern = /\b(done|finished|complete|completed|task\s+complete|workflow\s+complete)\b/i;
+            if (contText && donePattern.test(contText)) {
+              console.log(`\n✅ AI SAID DONE: "${contText.match(donePattern)[0]}"`);
+              console.log(`   Task is complete - exiting workflow loop`);
+              aiSaidDone = true;
+              
+              // Task complete - don't send completion message to user (silent)
+              console.log('✅ Task complete (silent)');
+              
+              // Exit the loop
+              break;
+            }
+            
+            // 🚨 CRITICAL: If no tool calls were generated but AI hasn't said "Done", request continuation
+            // This prevents premature exit when element lookup fails or AI is thinking
+            if (toolCalls.length === 0 && !aiSaidDone) {
+              console.log(`\n⚠️  NO TOOL CALLS GENERATED but AI hasn't said "Done"`);
+              console.log(`   Requesting continuation to either:`);
+              console.log(`   1. Try a different approach`);
+              console.log(`   2. Say "Done" if task is complete`);
+              
+              // Add a message asking AI to continue or say done
+              messages.push({
+                role: 'user',
+                content: `No action was detected. If the task is complete, say "Done". Otherwise, describe what you'll do next and take action.`
+              });
+              
+              // Request another continuation
+              console.log(`📤 Requesting continuation after empty tool queue...`);
+              
+              // Continue to next iteration (don't break)
+              continue;
+            }
+            
+            // 🚨 CRITICAL: Check if continuation generated the SAME tool call
+            // NOTE: This check is disabled because it's too aggressive and interrupts valid workflows
+            // The executedToolCallIds Set already prevents true infinite loops
+            // Allow the AI to retry actions if needed (e.g., if screen didn't update yet)
+            if (false && toolCalls.length > 0 && previousToolCalls.length > 0) {
+              const newToolCall = toolCalls[0];
+              const prevToolCall = previousToolCalls[0];
+              
+              // Compare tool call IDs or function names
+              if (newToolCall.id === prevToolCall.id || 
+                  (newToolCall.function.name === prevToolCall.function.name && 
+                   newToolCall.function.arguments === prevToolCall.function.arguments)) {
+                
+                // Track consecutive identical tool calls
+                if (!consecutiveIdenticalToolCalls) {
+                  consecutiveIdenticalToolCalls = 1;
+                } else {
+                  consecutiveIdenticalToolCalls++;
+                }
+                
+                console.log(`\n⚠️  CONTINUATION GENERATED SAME TOOL CALL (attempt ${consecutiveIdenticalToolCalls})`);
+                console.log(`   Previous: ${prevToolCall.function.name} (id: ${prevToolCall.id})`);
+                console.log(`   New: ${newToolCall.function.name} (id: ${newToolCall.id})`);
+                
+                // Stop after 3 attempts (allow 2 retries)
+                if (consecutiveIdenticalToolCalls >= 3) {
+                  console.log(`   🚨 AI is stuck after ${consecutiveIdenticalToolCalls} attempts - stopping workflow`);
+                  
+                  // Send warning and stop
+                  const warning = `\n\nAI generated the same tool call repeatedly. Stopping to prevent infinite loop.\n`;
+                  res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: warning })}\n`);
+                  toolCalls = []; // Clear to exit loop
+                  break;
+                } else {
+                  console.log(`   Allowing retry (${consecutiveIdenticalToolCalls}/3 attempts)`);
+                }
+              } else {
+                // Different tool call - reset counter
+                consecutiveIdenticalToolCalls = 0;
+              }
+            }
+            
+            // Track consecutive screenshots - INCREASED LIMIT (check AFTER updating toolCalls)
             if (toolCalls.length > 0 && toolCalls[0].function.name === 'windows_take_screenshot') {
               consecutiveScreenshots++;
-              if (consecutiveScreenshots >= 3) {
+              if (consecutiveScreenshots >= 10) {
                 console.log(`⚠️ TOO MANY CONSECUTIVE SCREENSHOTS: ${consecutiveScreenshots} in a row`);
                 console.log(`   AI should take action instead of just observing`);
                 console.log(`   Stopping iteration`);
@@ -2015,19 +4389,826 @@ END OF CUSTOM MODE
               consecutiveScreenshots = 0; // Reset if action tool is called
             }
             
-            // Update for next iteration
-            initialText = contText;
-            toolCalls = newToolCalls.filter(tc => tc && tc.function.name);
+            // Check if we should reset context after this response
+            if (shouldResetAfterResponse && !hasResetContext) {
+              console.log(`\n${'='.repeat(80)}`);
+              console.log(`🔄 CONTEXT RESET TRIGGERED - LIMIT EXCEEDED DURING RESPONSE`);
+              console.log(`   Current: ~${contextTokenCount} tokens`);
+              console.log(`   Maximum: ${maxContextTokens} tokens`);
+              console.log(`   Resetting context to continue fresh`);
+              console.log(`${'='.repeat(80)}\n`);
+              
+              // Create brief summary
+              const recentActions = toolCallHistory.slice(-5).map(sig => {
+                const { tool, args } = parseToolSignature(sig);
+                if (tool === 'windows_click_mouse') {
+                  return `clicked (${args.x}, ${args.y})`;
+                } else if (tool === 'windows_type_text') {
+                  return `typed "${args.text}"`;
+                } else if (tool === 'windows_press_key') {
+                  return `pressed ${args.key}`;
+                }
+                return tool.replace('windows_', '');
+              }).join(', ');
+              
+              const summary = `Previous actions: ${recentActions}. Continue from current screen state.`;
+              
+              console.log(`📝 Context summary: ${summary}`);
+              
+              // Reset messages
+              const originalRequest = history[0]?.content || message;
+              messages.length = 0;
+              messages.push({
+                role: 'system',
+                content: modeSystemPrompt
+              });
+              messages.push({
+                role: 'user',
+                content: `${originalRequest}\n\nContext: ${summary}\n\nTake a screenshot and continue from current state.`
+              });
+              
+              // Recalculate context size
+              contextTokenCount = messages.reduce((total, msg) => {
+                return total + estimateTokens(msg.content);
+              }, 0);
+              
+              console.log(`📊 Context size after reset: ~${contextTokenCount} tokens`);
+              
+              // Force a screenshot
+              toolCalls = [{
+                id: `reset_screenshot_${Date.now()}`,
+                type: 'function',
+                function: {
+                  name: 'windows_take_screenshot',
+                  arguments: '{}'
+                }
+              }];
+              
+              hasResetContext = true;
+              shouldResetAfterResponse = false;
+              
+              // Notify user
+              const resetMessage = `\n\n┃ Context limit reached (~${maxContextTokens} tokens). Resetting to continue fresh.\n`;
+              res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: resetMessage })}\n`);
+              if (res.flush) res.flush();
+              
+              console.log(`✅ Context reset complete, taking fresh screenshot`);
+            }
             
             if (toolCalls.length > 0) {
               console.log(`🔄 AI wants to make ${toolCalls.length} more tool calls, continuing...`);
             } else {
-              console.log(`✅ No more tool calls, AI is done`);
+              console.log(`⚠️  No tool calls detected in AI response`);
+              
+              // Check if AI explicitly said "Done" - if so, respect it
+              const aiSaidDone = (initialText || '').trim().toLowerCase().includes('done');
+              
+              if (aiSaidDone) {
+                console.log(`✅ AI explicitly said "Done" - task is complete`);
+                // Task is complete, stop the workflow
+              } else {
+                // Check if AI mentioned an action but didn't make a tool call
+                const text = (initialText || '').toLowerCase();
+                const mentionsAction = /\b(click|type|press|search|open|navigate|go to|double-click)\b/.test(text);
+                
+                // Check for repetition - if AI keeps saying the same thing without acting
+                const isRepetition = textHistory.length > 0 && 
+                  textHistory.slice(-2).every(prevText => {
+                    const similarity = prevText.toLowerCase().includes('open chrome') || 
+                                     prevText.toLowerCase().includes('double-click');
+                    return similarity;
+                  });
+                
+                if (mentionsAction && toolCallIteration < 20) {
+                  console.log(`🔄 AI mentioned an action but didn't make a tool call`);
+                  console.log(`   Text: "${(initialText || '').substring(0, 100)}..."`);
+                  console.log(`   Is repetition: ${isRepetition}`);
+                  console.log(`   Sending continuation request to force tool call`);
+                  
+                  // Force a continuation by adding a system message
+                  messages.push({
+                    role: 'assistant',
+                    content: initialText || null
+                  });
+                  
+                  // Check if AI mentioned "search bar" - provide specific guidance
+                  const mentionsSearchBar = /search\s*bar/i.test(initialText || '');
+                  const onYouTube = /youtube/i.test(JSON.stringify(messages.slice(-3))); // Check recent context
+                  
+                  let continuationPrompt = `🚨 CRITICAL: You mentioned an action but didn't call any tool!
+
+You said: "${(initialText || '').substring(0, 150)}"
+
+${isRepetition ? '⚠️ WARNING: You are REPEATING yourself! You already said this before. STOP repeating and ACT NOW!\n\n' : ''}
+
+You MUST call a tool to perform the action. Use the EXACT format:
+
+For clicking: windows_click_mouse(x=123, y=456)
+For typing: windows_type_text(text="your text")
+For pressing key: windows_press_key(key="enter")
+
+Extract coordinates from the KEY ELEMENTS section in the screenshot data above.
+
+Example: If you see "[Desktop icon] Google Chrome at (100, 200)", use:
+windows_click_mouse(x=100, y=200, double=true)
+
+${isRepetition ? '🚨 DO NOT say "I will" or "I\'ll" again - CALL THE TOOL NOW with coordinates!\n\n' : ''}`;
+
+                  if (mentionsSearchBar && onYouTube) {
+                    continuationPrompt += `
+
+🚨 SEARCH BAR WARNING:
+You mentioned "search bar" while on YouTube. There are THREE different search bars:
+1. Windows taskbar search (y > 1000) - NEVER use for websites!
+2. Browser address bar (y < 100) - ONLY for URLs like youtube.com
+3. YouTube website search bar (y > 100, inside website) - USE THIS for searching!
+
+You MUST use the YOUTUBE WEBSITE SEARCH BAR (inside the website content), NOT the browser address bar!
+Look for "YouTube search" or "Search" element with y coordinate > 100 in KEY ELEMENTS section.
+
+WRONG: Browser address bar at (988, 63) ❌
+CORRECT: YouTube search bar at (651, 155) ✅ (example coordinates)`;
+                  }
+
+                  continuationPrompt += `
+
+CALL THE TOOL NOW with proper coordinates from KEY ELEMENTS section!`;
+
+                  messages.push({
+                    role: 'system',
+                    content: continuationPrompt
+                  });
+                  
+                  // Don't force screenshot - let AI make the actual tool call
+                  console.log(`✅ Sent continuation prompt - waiting for AI to make tool call`);
+                  continue;
+                }
+                
+                console.log(`✅ No more tool calls, AI is done`);
+                // Don't check for repetition - the AI has completed the task
+              }
+            
+          // CRITICAL: Detect text repetition (AI generating same response multiple times)
+          if (toolCalls.length === 0) {
+            const currentTextNormalized = (initialText || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                
+                // Check if this text is very similar to recent responses
+                if (currentTextNormalized.length > 20) { // Only check substantial responses
+                  const recentTexts = textHistory.slice(-3); // Check last 3 responses
+                  let repetitionCount = 0;
+                  
+                  for (const prevText of recentTexts) {
+                    const prevNormalized = prevText.trim().toLowerCase().replace(/\s+/g, ' ');
+                    
+                    // Calculate similarity (simple approach: check if 80% of words match)
+                    const currentWords = currentTextNormalized.split(' ');
+                    const prevWords = prevNormalized.split(' ');
+                    
+                    if (currentWords.length > 5 && prevWords.length > 5) {
+                      const matchingWords = currentWords.filter(word => prevWords.includes(word)).length;
+                    const similarity = matchingWords / Math.max(currentWords.length, prevWords.length);
+                    
+                    if (similarity > 0.8) {
+                      repetitionCount++;
+                    }
+                  }
+                }
+                
+                // If we've seen this response 2+ times, it's a repetition loop
+                if (repetitionCount >= 2) {
+                  console.log(`⚠️ TEXT REPETITION DETECTED: AI generated similar response ${repetitionCount + 1} times`);
+                  console.log(`   Current: "${initialText.substring(0, 100)}..."`);
+                  console.log(`   This indicates the AI is stuck. Forcing a different approach.`);
+                  
+                  // Send message to user
+                  const loopMessage = `\n\n┃ Detected response loop. Forcing different approach.\n`;
+                  res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: loopMessage })}\n`);
+                  if (res.flush) res.flush();
+                  
+                  // Add strong instruction to do something different
+                  messages.push({
+                    role: 'assistant',
+                    content: initialText
+                  });
+                  
+                  messages.push({
+                    role: 'system',
+                    content: `CRITICAL: You are repeating the same response. This is NOT helpful.
+
+You MUST do something DIFFERENT now:
+
+1. If you keep saying you'll click the address bar but haven't typed yet → TYPE the URL now
+2. If you keep describing the screen → TAKE ACTION instead
+3. If you keep trying the same coordinates → Try DIFFERENT coordinates
+4. If something isn't working → Try a DIFFERENT approach
+
+DO NOT repeat yourself. Execute a DIFFERENT action NOW.`
+                  });
+                  
+                  // Request a different response
+                  const loopResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${openrouterApiKey}`,
+                      'Content-Type': 'application/json',
+                      'HTTP-Referer': 'http://localhost:3000',
+                      'X-Title': 'Kali AI Assistant'
+                    },
+                    body: JSON.stringify({
+                      model: model,
+                      messages: messages,
+                      stream: true,
+                      tools: tools && tools.length > 0 ? tools : undefined,
+                      parallel_tool_calls: false
+                    })
+                  });
+                  
+                  if (loopResponse.ok) {
+                    console.log(`✅ Loop break stream started`);
+                    const lbReader = loopResponse.body.getReader();
+                    let lbBuffer = '';
+                    let lbText = '';
+                    let lbToolCalls = [];
+                    
+                    while (true) {
+                      const { done, value } = await lbReader.read();
+                      if (done) break;
+                      
+                      lbBuffer += decoder.decode(value, { stream: true });
+                      const lbLines = lbBuffer.split('\n');
+                      lbBuffer = lbLines.pop() || '';
+                      
+                      for (const lbLine of lbLines) {
+                        if (lbLine.startsWith('data: ')) {
+                          const lbData = lbLine.slice(6);
+                          if (lbData === '[DONE]') continue;
+                          
+                          try {
+                            const lbParsed = JSON.parse(lbData);
+                            const lbDelta = lbParsed.choices?.[0]?.delta;
+                            
+                            if (lbDelta?.content) {
+                              lbText += lbDelta.content;
+                              res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: lbDelta.content })}\n`);
+                              if (res.flush) res.flush();
+                            }
+                            
+                            if (lbDelta?.tool_calls) {
+                              for (const toolCallDelta of lbDelta.tool_calls) {
+                                const index = toolCallDelta.index || 0;
+                                
+                                if (!lbToolCalls[index]) {
+                                  lbToolCalls[index] = {
+                                    id: toolCallDelta.id || `loop_break_${Date.now()}_${index}`,
+                                    type: 'function',
+                                    function: {
+                                      name: '',
+                                      arguments: ''
+                                    }
+                                  };
+                                }
+                                
+                                if (toolCallDelta.function?.name) {
+                                  lbToolCalls[index].function.name += toolCallDelta.function.name;
+                                }
+                                
+                                if (toolCallDelta.function?.arguments) {
+                                  lbToolCalls[index].function.arguments += toolCallDelta.function.arguments;
+                                }
+                              }
+                            }
+                          } catch (e) {
+                            console.error('Failed to parse loop break response:', e);
+                          }
+                        }
+                      }
+                    }
+                    
+                    toolCalls = lbToolCalls.filter(tc => tc && tc.function.name);
+                    initialText = lbText;
+                    
+                    if (toolCalls.length > 0) {
+                      console.log(`✅ Loop break generated ${toolCalls.length} tool calls, continuing workflow`);
+                      textHistory.length = 0; // Clear text history to prevent false positives
+                      continue; // Continue with the new tool calls
+                    } else {
+                      // Check if AI said "Done"
+                      const isDone = /\b(done|complete|finished)\b/i.test(lbText);
+                      if (isDone) {
+                        console.log(`✅ AI said "Done", task complete`);
+                        break;
+                      } else {
+                        console.log(`⚠️  Loop break did not generate tool calls, but task not done - sending reminder`);
+                        messages.push({
+                          role: 'user',
+                          content: 'Continue with the next action to complete the task. What should you do next?'
+                        });
+                        // Don't break, continue the loop
+                      }
+                    }
+                  } else {
+                    console.error(`❌ Loop break request failed: ${loopResponse.status}`);
+                    break;
+                  }
+                }
+              }
             }
+          }
+          
+          // Track this text response
+          textHistory.push(initialText || '');
+          if (textHistory.length > 5) {
+            textHistory.shift(); // Keep only last 5 responses
+          }
+              
+              // CRITICAL: Check if AI signaled completion with "Done"
+              // ONLY stop if AI explicitly says "Done" as a standalone word
+              const completionIndicators = [
+                /\bdone\b/i,
+                /\btask.*complete/i,
+                /\ball.*done/i,
+                /\beverything.*done/i,
+                /\bsuccessfully completed/i
+              ];
+              
+              const lowerText = (initialText || '').toLowerCase();
+              const hasCompletionIndicator = completionIndicators.some(pattern => pattern.test(lowerText));
+              
+              // CRITICAL: Only stop if AI said "Done" AND no tool calls were generated
+              // If tool calls exist, AI is still working - don't stop!
+              if (hasCompletionIndicator && toolCalls.length === 0) {
+                console.log(`✅ AI signaled task completion: "${initialText}"`);
+                console.log(`   Detected completion indicator with no tool calls, ending workflow`);
+                break; // Exit the loop - task is complete
+              } else if (hasCompletionIndicator && toolCalls.length > 0) {
+                console.log(`ℹ️  AI mentioned completion but generated ${toolCalls.length} tool calls - continuing workflow`);
+                // Don't break - AI is still working
+              }
+              
+              // CRITICAL: If we just took a verification screenshot after an action, force continuation
+              if (shouldForceContinuationAfterScreenshot) {
+                console.log(`⚠️  Verification screenshot taken after action, but AI stopped without continuing`);
+                console.log(`   Forcing continuation to complete the workflow`);
+                
+                // Add a strong continuation prompt
+                messages.push({
+                  role: 'assistant',
+                  content: initialText || 'I can see the current screen.'
+                });
+                
+                messages.push({
+                  role: 'system',
+                  content: `CRITICAL: You just took a verification screenshot after performing an action.
+
+The user's request has MULTIPLE STEPS. You MUST continue until ALL steps are complete.
+
+WHAT YOU MUST DO NOW:
+1. Analyze the current screenshot - did your action succeed?
+2. Identify the NEXT step in the workflow
+3. Execute that step immediately
+4. Continue until the ENTIRE user request is complete
+
+DO NOT:
+❌ Stop after taking a screenshot
+❌ Generate conversational text without actions
+❌ Say "I can see" or "The screen shows" - just ACT
+
+DO:
+✅ Execute the next action immediately (click, type, press key)
+✅ Continue the workflow step by step
+✅ Only say "Done" when ALL steps are complete
+
+NEXT ACTION: Execute the next step of the workflow NOW.`
+                });
+                
+                contextTokenCount += estimateTokens(initialText || 'I can see the current screen.');
+                contextTokenCount += estimateTokens(messages[messages.length - 1].content);
+                
+                // Request continuation
+                const verificationContinuationResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openrouterApiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'http://localhost:3000',
+                    'X-Title': 'Kali AI Assistant'
+                  },
+                  body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    stream: true,
+                    tools: tools && tools.length > 0 ? tools : undefined,
+                    parallel_tool_calls: false
+                  }),
+                  signal: abortController.signal // Use abort controller
+                });
+                
+                if (verificationContinuationResponse.ok) {
+                  console.log(`✅ Verification continuation stream started`);
+                  const vcReader = verificationContinuationResponse.body.getReader();
+                  let vcBuffer = '';
+                  let vcText = '';
+                  let vcToolCalls = [];
+                  
+                  while (true) {
+                    const { done, value } = await vcReader.read();
+                    if (done) break;
+                    
+                    vcBuffer += decoder.decode(value, { stream: true });
+                    const vcLines = vcBuffer.split('\n');
+                    vcBuffer = vcLines.pop() || '';
+                    
+                    for (const vcLine of vcLines) {
+                      if (vcLine.startsWith('data: ')) {
+                        const vcData = vcLine.slice(6);
+                        if (vcData === '[DONE]') continue;
+                        
+                        try {
+                          const vcParsed = JSON.parse(vcData);
+                          const vcDelta = vcParsed.choices?.[0]?.delta;
+                          
+                          if (vcDelta?.content) {
+                            vcText += vcDelta.content;
+                            res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: vcDelta.content })}\n`);
+                            if (res.flush) res.flush();
+                          }
+                          
+                          if (vcDelta?.tool_calls) {
+                            for (const toolCallDelta of vcDelta.tool_calls) {
+                              const index = toolCallDelta.index || 0;
+                              
+                              if (!vcToolCalls[index]) {
+                                vcToolCalls[index] = {
+                                  id: toolCallDelta.id || `verify_cont_${Date.now()}_${index}`,
+                                  type: 'function',
+                                  function: {
+                                    name: '',
+                                    arguments: ''
+                                  }
+                                };
+                              }
+                              
+                              if (toolCallDelta.function?.name) {
+                                vcToolCalls[index].function.name += toolCallDelta.function.name;
+                              }
+                              
+                              if (toolCallDelta.function?.arguments) {
+                                vcToolCalls[index].function.arguments += toolCallDelta.function.arguments;
+                              }
+                            }
+                          }
+                        } catch (e) {
+                          console.error('Failed to parse verification continuation response:', e);
+                        }
+                      }
+                    }
+                  }
+                  
+                  toolCalls = vcToolCalls.filter(tc => tc && tc.function.name);
+                  initialText = vcText;
+                  
+                  if (toolCalls.length > 0) {
+                    console.log(`✅ Verification continuation generated ${toolCalls.length} tool calls, continuing workflow`);
+                    shouldForceContinuationAfterScreenshot = false; // Clear flag
+                  } else {
+                    // Check if AI said "Done"
+                    const isDone = /\b(done|complete|finished)\b/i.test(vcText);
+                    if (isDone) {
+                      console.log(`✅ AI said "Done", task complete`);
+                      break;
+                    } else {
+                      console.log(`⚠️  Verification continuation did not generate tool calls, but task not done - sending reminder`);
+                      messages.push({
+                        role: 'user',
+                        content: 'Continue with the next action. What should you do next?'
+                      });
+                      shouldForceContinuationAfterScreenshot = false;
+                      // Don't break, continue the loop
+                    }
+                  }
+                } else {
+                  console.error(`❌ Verification continuation request failed: ${verificationContinuationResponse.status}`);
+                }
+                
+                // Continue to next iteration if we got tool calls
+                if (toolCalls.length > 0) {
+                  continue;
+                }
+              }
+              
+              // CRITICAL: If we just reset context and took a screenshot, force continuation
+              if (hasResetContext && toolCallHistory.length > 0) {
+                console.log(`⚠️  Context was reset and screenshot taken, but AI stopped without continuing workflow`);
+                console.log(`   Forcing continuation to complete the user's request`);
+                
+                // Add a strong continuation prompt
+                messages.push({
+                  role: 'assistant',
+                  content: initialText || 'I can see the current screen.'
+                });
+                
+                messages.push({
+                  role: 'system',
+                  content: `CRITICAL CONTINUATION REQUIRED!
+
+You just took a screenshot after a context reset. The user's request has MULTIPLE STEPS and is NOT complete yet.
+
+WHAT YOU MUST DO NOW:
+1. Analyze the current screenshot
+2. Identify the NEXT step in the workflow
+3. Execute that step immediately
+4. Continue until the ENTIRE user request is complete
+
+DO NOT:
+❌ Stop after taking a screenshot
+❌ Generate conversational text without actions
+❌ Say "I can see" or "The screen shows" - just ACT
+
+DO:
+✅ Execute the next action immediately (click, type, press key)
+✅ Continue the workflow step by step
+✅ Only say "Done" when ALL steps are complete
+
+NEXT ACTION: Execute the next step of the workflow NOW.`
+                });
+                
+                contextTokenCount += estimateTokens(initialText || 'I can see the current screen.');
+                contextTokenCount += estimateTokens(messages[messages.length - 1].content);
+                
+                // Request continuation
+                const resetContinuationResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openrouterApiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'http://localhost:3000',
+                    'X-Title': 'Kali AI Assistant'
+                  },
+                  body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    stream: true,
+                    tools: tools && tools.length > 0 ? tools : undefined,
+                    parallel_tool_calls: false
+                  }),
+                  signal: abortController.signal // Use abort controller
+                });
+                
+                if (resetContinuationResponse.ok) {
+                  console.log(`✅ Reset continuation stream started`);
+                  const rcReader = resetContinuationResponse.body.getReader();
+                  let rcBuffer = '';
+                  let rcText = '';
+                  let rcToolCalls = [];
+                  
+                  while (true) {
+                    const { done, value } = await rcReader.read();
+                    if (done) break;
+                    
+                    rcBuffer += decoder.decode(value, { stream: true });
+                    const rcLines = rcBuffer.split('\n');
+                    rcBuffer = rcLines.pop() || '';
+                    
+                    for (const rcLine of rcLines) {
+                      if (rcLine.startsWith('data: ')) {
+                        const rcData = rcLine.slice(6);
+                        if (rcData === '[DONE]') continue;
+                        
+                        try {
+                          const rcParsed = JSON.parse(rcData);
+                          const rcDelta = rcParsed.choices?.[0]?.delta;
+                          
+                          if (rcDelta?.content) {
+                            rcText += rcDelta.content;
+                            res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: rcDelta.content })}\n`);
+                            if (res.flush) res.flush();
+                          }
+                          
+                          if (rcDelta?.tool_calls) {
+                            for (const toolCallDelta of rcDelta.tool_calls) {
+                              const index = toolCallDelta.index || 0;
+                              
+                              if (!rcToolCalls[index]) {
+                                rcToolCalls[index] = {
+                                  id: toolCallDelta.id || `reset_cont_${Date.now()}_${index}`,
+                                  type: 'function',
+                                  function: {
+                                    name: '',
+                                    arguments: ''
+                                  }
+                                };
+                              }
+                              
+                              if (toolCallDelta.function?.name) {
+                                rcToolCalls[index].function.name += toolCallDelta.function.name;
+                              }
+                              
+                              if (toolCallDelta.function?.arguments) {
+                                rcToolCalls[index].function.arguments += toolCallDelta.function.arguments;
+                              }
+                            }
+                          }
+                        } catch (e) {
+                          console.error('Failed to parse reset continuation response:', e);
+                        }
+                      }
+                    }
+                  }
+                  
+                  toolCalls = rcToolCalls.filter(tc => tc && tc.function.name);
+                  initialText = rcText;
+                  
+                  if (toolCalls.length > 0) {
+                    console.log(`✅ Reset continuation generated ${toolCalls.length} tool calls, continuing workflow`);
+                    hasResetContext = false; // Clear flag so we don't trigger again
+                  } else {
+                    // Check if AI said "Done"
+                    const isDone = /\b(done|complete|finished)\b/i.test(rcText);
+                    if (isDone) {
+                      console.log(`✅ AI said "Done", task complete`);
+                      break;
+                    } else {
+                      console.log(`⚠️  Reset continuation did not generate tool calls, but task not done - sending reminder`);
+                      messages.push({
+                        role: 'user',
+                        content: 'Continue with the next action. What should you do next?'
+                      });
+                      hasResetContext = false;
+                      // Don't break, continue the loop
+                    }
+                  }
+                } else {
+                  console.error(`❌ Reset continuation request failed: ${resetContinuationResponse.status}`);
+                }
+                
+                // Continue to next iteration if we got tool calls
+                if (toolCalls.length > 0) {
+                  continue;
+                }
+              }
+              
+              // Check if the AI generated text that suggests the task is incomplete
+              const taskIncompleteIndicators = [
+                "i'll",
+                "let me",
+                "i will",
+                "first",
+                "then",
+                "next",
+                "after that"
+              ];
+              
+              const lowerTextIncomplete = (initialText || '').toLowerCase();
+              const hasIncompleteIndicator = taskIncompleteIndicators.some(indicator => lowerTextIncomplete.includes(indicator));
+              
+              if (hasIncompleteIndicator) {
+                console.log(`⚠️  AI generated text suggesting incomplete task: "${initialText}"`);
+                console.log(`   Detected indicators: ${taskIncompleteIndicators.filter(i => lowerTextIncomplete.includes(i)).join(', ')}`);
+                console.log(`   Sending continuation reminder to complete the workflow`);
+                
+                // Add a system message to remind AI to continue
+                messages.push({
+                  role: 'assistant',
+                  content: initialText
+                });
+                
+                messages.push({
+                  role: 'system',
+                  content: `CRITICAL: You just said "${initialText}" but you did NOT generate any tool calls to continue the workflow!
+
+The user's request has MULTIPLE STEPS. You MUST complete ALL steps before saying "Done".
+
+WHAT YOU NEED TO DO NOW:
+1. Take a screenshot to see the current state
+2. Continue with the NEXT step of the workflow
+3. Keep going until the ENTIRE user request is complete
+
+DO NOT:
+❌ Stop after one step
+❌ Generate conversational text without tool calls
+❌ Say "I'll" or "Let me" - just DO IT
+
+DO:
+✅ Call windows_take_screenshot NOW
+✅ Continue the workflow
+✅ Complete ALL steps
+
+NEXT ACTION: Call windows_take_screenshot to continue.`
+                });
+                
+                contextTokenCount += estimateTokens(initialText);
+                contextTokenCount += estimateTokens(messages[messages.length - 1].content);
+                
+                // Request continuation
+                const reminderResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openrouterApiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'http://localhost:3000',
+                    'X-Title': 'Kali AI Assistant'
+                  },
+                  body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    stream: true,
+                    tools: tools && tools.length > 0 ? tools : undefined,
+                    parallel_tool_calls: false
+                  })
+                });
+                
+                if (reminderResponse.ok) {
+                  console.log(`✅ Reminder continuation stream started`);
+                  const remReader = reminderResponse.body.getReader();
+                  let remBuffer = '';
+                  let remText = '';
+                  let remToolCalls = [];
+                  
+                  while (true) {
+                    const { done, value } = await remReader.read();
+                    if (done) break;
+                    
+                    remBuffer += decoder.decode(value, { stream: true });
+                    const remLines = remBuffer.split('\n');
+                    remBuffer = remLines.pop() || '';
+                    
+                    for (const remLine of remLines) {
+                      if (remLine.startsWith('data: ')) {
+                        const remData = remLine.slice(6);
+                        if (remData === '[DONE]') continue;
+                        
+                        try {
+                          const remParsed = JSON.parse(remData);
+                          const remDelta = remParsed.choices?.[0]?.delta;
+                          
+                          if (remDelta?.content) {
+                            remText += remDelta.content;
+                            res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: remDelta.content })}\n`);
+                            if (res.flush) res.flush();
+                          }
+                          
+                          if (remDelta?.tool_calls) {
+                            for (const toolCallDelta of remDelta.tool_calls) {
+                              const index = toolCallDelta.index || 0;
+                              
+                              if (!remToolCalls[index]) {
+                                remToolCalls[index] = {
+                                  id: toolCallDelta.id || `reminder_call_${Date.now()}_${index}`,
+                                  type: 'function',
+                                  function: {
+                                    name: '',
+                                    arguments: ''
+                                  }
+                                };
+                              }
+                              
+                              if (toolCallDelta.function?.name) {
+                                remToolCalls[index].function.name += toolCallDelta.function.name;
+                              }
+                              
+                              if (toolCallDelta.function?.arguments) {
+                                remToolCalls[index].function.arguments += toolCallDelta.function.arguments;
+                              }
+                            }
+                          }
+                        } catch (e) {
+                          console.error('Failed to parse reminder response:', e);
+                        }
+                      }
+                    }
+                  }
+                  
+                  toolCalls = remToolCalls.filter(tc => tc && tc.function.name);
+                  initialText = remText;
+                  
+                  if (toolCalls.length > 0) {
+                    console.log(`✅ Reminder generated ${toolCalls.length} tool calls, continuing workflow`);
+                  } else {
+                    // Check if AI said "Done"
+                    const isDone = /\b(done|complete|finished)\b/i.test(remText);
+                    if (isDone) {
+                      console.log(`✅ AI said "Done", task complete`);
+                      break;
+                    } else {
+                      console.log(`⚠️  Reminder did not generate tool calls, but task not done - sending another reminder`);
+                      messages.push({
+                        role: 'user',
+                        content: 'Please continue. What is the next action you need to take?'
+                      });
+                      // Don't break, continue the loop
+                    }
+                  }
+                } else {
+                  console.error(`❌ Reminder request failed: ${reminderResponse.status}`);
+                }
+              }
           } else {
             console.error(`❌ Continuation request failed: ${continuationResponse.status}`);
             toolCalls = []; // Stop on error
           }
+        } catch (continuationError) {
+          console.error(`❌ Continuation handling error:`, continuationError);
+          toolCalls = []; // Stop on error
         }
       } catch (toolError) {
         console.error(`❌ Tool execution error:`, toolError);
@@ -2035,10 +5216,8 @@ END OF CUSTOM MODE
       }
     }
     
-    // Check if we hit the max iterations
-    if (toolCallIteration >= maxToolCallIterations) {
-      console.log(`⚠️  Max tool call iterations (${maxToolCallIterations}) reached, stopping`);
-    }
+    // Workflow complete - AI said "Done" or stopped generating tool calls
+    console.log(`✅ Workflow complete after ${toolCallIteration} iterations`);
     
     // Send done message AFTER AI finishes all iterations
     res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
@@ -2079,9 +5258,61 @@ END OF CUSTOM MODE
     console.error('❌ OpenRouter error:', error);
     console.error('❌ Error stack:', error.stack);
     
+    // Send error message to frontend if headers already sent (streaming started)
+    if (res.headersSent) {
+      try {
+        // Send a simple network error message
+        res.write(`0:${JSON.stringify({ 
+          type: 'text-delta', 
+          textDelta: '\n\nA network error occurred. Please try again.' 
+        })}\n`);
+        res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
+        if (res.flush) res.flush();
+      } catch (writeError) {
+        console.error('Failed to send error message:', writeError);
+      }
+    } else {
+      // Headers not sent yet, can send JSON error
+      res.status(500).json({
+        error: 'OpenRouter API error',
+        message: error.message
+      });
+    }
+    
+    // Check if this was a user cancellation (abort) - not a network error
+    if (error.name === 'AbortError' && isUserCancellation) {
+      console.log('🛑 Workflow cancelled by user - saving messages before exit');
+      
+      // Save the accumulated message to database if we have content
+      if (initialText && initialText.trim().length > 0) {
+        console.log(`💾 Saving ${initialText.length} chars of AI response to database`);
+        
+        try {
+          // Get session and user info from request
+          const { sessionId, userId } = req.body;
+          
+          if (sessionId && userId) {
+            // Save assistant message to database
+            await sessionManager.addMessage(sessionId, {
+              role: 'assistant',
+              content: initialText.trim(),
+              timestamp: new Date().toISOString(),
+              userId: userId
+            });
+            
+            console.log('✅ AI response saved to database');
+          } else {
+            console.warn('⚠️  Cannot save message - missing sessionId or userId');
+          }
+        } catch (saveError) {
+          console.error('❌ Failed to save message:', saveError.message);
+        }
+      }
+    }
+    
     // Terminate stream in health monitor
     if (typeof streamId !== 'undefined') {
-      streamHealthMonitor.terminateStream(streamId, 'error');
+      streamHealthMonitor.terminateStream(streamId, (error.name === 'AbortError' && isUserCancellation) ? 'cancelled' : 'error');
     }
     
     // Don't throw - response may have already been sent
@@ -2217,6 +5448,9 @@ END OF CUSTOM MODE
       }
     }
     
+    // Check if this is a screenshot-only request
+    const isScreenshotOnly = /^(take|get|show|capture)\s+(a\s+)?screenshot$/i.test(message.trim());
+    
     // Build messages array
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -2224,8 +5458,12 @@ END OF CUSTOM MODE
         role: msg.role,
         content: msg.content
       })),
-      { role: 'user', content: message }
+      { role: 'user', content: isScreenshotOnly ? `${message}\n\nIMPORTANT: Just take ONE screenshot, describe what you see, then say "Done". Do NOT perform any other actions.` : message }
     ];
+
+    if (isScreenshotOnly) {
+      console.log(`📸 Detected screenshot-only request, adding explicit instruction to stop after description`);
+    }
 
     console.log(`📤 Sending request to OpenAI with ${messages.length} messages...`);
     if (tools) {
@@ -2411,9 +5649,9 @@ END OF CUSTOM MODE
                   });
                 }
               } else if (data.choices?.[0]?.finish_reason) {
-                // Send done event in OpenRouter format for frontend compatibility
-                res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
-                streamHealthMonitor.completeStream(streamId);
+                // Don't send done yet - need to check for text-based tool calls first
+                console.log(`✅ Stream finished with reason: ${data.choices[0].finish_reason}`);
+                // The done message will be sent after checking for text-based tool calls
               }
             } catch (e) {
               console.error('Error parsing OpenAI stream:', e.message);
@@ -2623,17 +5861,38 @@ async function handleOpenAIToolCalls(toolCalls, windowsClient, res, messages, mo
       const size = result.size;
       const mousePos = result.mousePosition;
       
+      // IMPORTANT: Use ui_elements which includes desktop icons
+      let allElements = result.ui_elements || result.uiElements || windowsAPI.elements || [];
+      
+      // 🚨 FILTER OUT SEARCH BAR UI ELEMENTS - Force AI to use OCR TEXT only for website searches
+      // Remove UI elements with "Search" in name that are ComboBox, Button, or Edit (y > 100 and y < 1000)
+      // This forces the AI to click on OCR TEXT coordinates, not UI element boundaries
+      allElements = allElements.filter(el => {
+        const isSearchElement = el.name && el.name.toLowerCase().includes('search');
+        const isWebsiteArea = el.y > 100 && el.y < 1000;
+        const isInputType = ['ComboBox', 'Button', 'Edit', 'Text'].includes(el.type || el.control_type_name);
+        
+        // Keep element if it's NOT a search input in website area
+        // Remove search UI elements in website area to force OCR TEXT usage
+        if (isSearchElement && isWebsiteArea && isInputType) {
+          console.log(`🚫 Filtered out search UI element: ${el.name} at (${el.x}, ${el.y}) - forcing OCR TEXT usage`);
+          return false; // Remove this element
+        }
+        return true; // Keep this element
+      });
+      
       screenDataText = `\n\n📊 COMPLETE SCREENSHOT DATA (READ EVERYTHING CAREFULLY):
 
 🖥️ SCREEN INFORMATION:
 - Resolution: ${size?.width || 0}x${size?.height || 0}
 - Mouse Position: (${mousePos?.x || 0}, ${mousePos?.y || 0})
 
-🪟 ALL WINDOWS API ELEMENTS (${windowsAPI?.elements?.length || 0} total):`;
+🪟 ALL UI ELEMENTS (${allElements.length} total - INCLUDING DESKTOP ICONS):`;
       
-      if (windowsAPI?.elements && windowsAPI.elements.length > 0) {
-        windowsAPI.elements.forEach((el, idx) => {
-          screenDataText += `\n${idx + 1}. [${el.type}] "${el.name || 'Unknown'}"`;
+      if (allElements.length > 0) {
+        allElements.forEach((el, idx) => {
+          const elType = el.type || el.control_type_name || 'Unknown';
+          screenDataText += `\n${idx + 1}. [${elType}] "${el.name || 'Unknown'}"`;
           screenDataText += `\n   Position: (${el.x}, ${el.y}) Center: (${el.center_x}, ${el.center_y})`;
           screenDataText += `\n   Size: ${el.width}x${el.height}`;
           if (el.isMaximized !== undefined) screenDataText += `\n   Maximized: ${el.isMaximized}`;
@@ -2643,7 +5902,7 @@ async function handleOpenAIToolCalls(toolCalls, windowsClient, res, messages, mo
           if (el.hasMinimizeButton !== undefined) screenDataText += `\n   Has Minimize Button: ${el.hasMinimizeButton}`;
         });
       } else {
-        screenDataText += '\n(No Windows API elements found)';
+        screenDataText += '\n(No UI elements found)';
       }
       
       const ocrElements = ocr?.textElements || ocr?.detectedElements || [];
@@ -2668,10 +5927,11 @@ async function handleOpenAIToolCalls(toolCalls, windowsClient, res, messages, mo
       }
       
       screenDataText += `\n\n🎯 SUMMARY BY TYPE:`;
-      if (windowsAPI?.elements) {
+      if (allElements.length > 0) {
         const types = {};
-        windowsAPI.elements.forEach(el => {
-          types[el.type] = (types[el.type] || 0) + 1;
+        allElements.forEach(el => {
+          const elType = el.type || el.control_type_name || 'Unknown';
+          types[elType] = (types[elType] || 0) + 1;
         });
         Object.entries(types).forEach(([type, count]) => {
           screenDataText += `\n- ${type}: ${count}`;
@@ -2912,6 +6172,48 @@ async function makeOpenAIContinuationRequest(messages, model, apiKey, tools, res
           }
         } else {
           console.warn(`⚠️ Cannot track OpenAI continuation usage: usageData=${!!usageData}, userId=${userId}`);
+        }
+        
+        // Check for text-based tool calls in continuation text
+        if (toolCalls.length === 0 && initialText) {
+          const { extractToolCall, normalizeToolName } = require('./text-tool-call-parser');
+          const toolCallMatch = extractToolCall(initialText);
+          
+          if (toolCallMatch) {
+            console.log(`🔍 DETECTED TEXT-BASED TOOL CALL IN CONTINUATION: ${toolCallMatch.functionName}`);
+            console.log(`   Args:`, toolCallMatch.args);
+            
+            const normalizedName = normalizeToolName(toolCallMatch.functionName);
+            
+            // Check if this is explicit syntax (should be hidden) or natural language (should be kept)
+            const explicitSyntaxPattern = /\[Calls?:\s*([a-zA-Z_][a-zA-Z0-9_]*)\((\{[^}]*\}|[^)]*)\)\]/i;
+            const isExplicitSyntax = explicitSyntaxPattern.test(toolCallMatch.fullMatch);
+            
+            if (isExplicitSyntax) {
+              console.log(`📤 Sending text-replace event to hide explicit syntax`);
+              const cleanedText = toolCallMatch.textBefore + (toolCallMatch.textAfter ? ' ' + toolCallMatch.textAfter : '');
+              res.write(`0:${JSON.stringify({ 
+                type: 'text-replace', 
+                text: cleanedText 
+              })}\n`);
+              initialText = cleanedText;
+            }
+            
+            // Convert text-based tool call to structured format
+            toolCalls.push({
+              id: `text_call_${iteration}_${Date.now()}`,
+              type: 'function',
+              function: {
+                name: normalizedName,
+                arguments: JSON.stringify(toolCallMatch.args)
+              },
+              _fromText: true,
+              _textBefore: toolCallMatch.textBefore,
+              _textAfter: toolCallMatch.textAfter
+            });
+            
+            console.log(`✅ Converted continuation text tool call to structured format: ${normalizedName}`);
+          }
         }
         
         // If there are more tool calls, execute them recursively
@@ -3374,16 +6676,37 @@ async function handleAnthropicToolCalls(toolUses, windowsClient, res, messages, 
       const size = result.size;
       const mousePos = result.mousePosition;
       
+      // IMPORTANT: Use ui_elements which includes desktop icons
+      let allElements = result.ui_elements || result.uiElements || windowsAPI.elements || [];
+      
+      // 🚨 FILTER OUT SEARCH BAR UI ELEMENTS - Force AI to use OCR TEXT only for website searches
+      // Remove UI elements with "Search" in name that are ComboBox, Button, or Edit (y > 100 and y < 1000)
+      // This forces the AI to click on OCR TEXT coordinates, not UI element boundaries
+      allElements = allElements.filter(el => {
+        const isSearchElement = el.name && el.name.toLowerCase().includes('search');
+        const isWebsiteArea = el.y > 100 && el.y < 1000;
+        const isInputType = ['ComboBox', 'Button', 'Edit', 'Text'].includes(el.type || el.control_type_name);
+        
+        // Keep element if it's NOT a search input in website area
+        // Remove search UI elements in website area to force OCR TEXT usage
+        if (isSearchElement && isWebsiteArea && isInputType) {
+          console.log(`🚫 Filtered out search UI element: ${el.name} at (${el.x}, ${el.y}) - forcing OCR TEXT usage`);
+          return false; // Remove this element
+        }
+        return true; // Keep this element
+      });
+      
       toolResultContent = `\n\n📊 COMPLETE SCREENSHOT DATA:
 
 🖥️ SCREEN: ${size?.width || 0}x${size?.height || 0}
 🖱️ MOUSE: (${mousePos?.x || 0}, ${mousePos?.y || 0})
 
-🪟 WINDOWS API ELEMENTS (${windowsAPI?.elements?.length || 0}):`;
+🪟 UI ELEMENTS (${allElements.length} - INCLUDING DESKTOP ICONS):`;
       
-      if (windowsAPI?.elements && windowsAPI.elements.length > 0) {
-        windowsAPI.elements.forEach((el, idx) => {
-          toolResultContent += `\n${idx + 1}. [${el.type}] "${el.name || 'Unknown'}"`;
+      if (allElements.length > 0) {
+        allElements.forEach((el, idx) => {
+          const elType = el.type || el.control_type_name || 'Unknown';
+          toolResultContent += `\n${idx + 1}. [${elType}] "${el.name || 'Unknown'}"`;
           toolResultContent += `\n   Position: (${el.x}, ${el.y}) Center: (${el.center_x}, ${el.center_y})`;
           toolResultContent += `\n   Size: ${el.width}x${el.height}`;
         });
@@ -3609,6 +6932,81 @@ async function handleGeminiChat(req, res, message, history, requestedModel) {
     const { mode = 'terminal', projectId, customModeId } = req.body;
     console.log(`🎯 Mode: ${mode}, Project ID: ${projectId}, Custom Mode ID: ${customModeId || 'none'}`);
 
+    // Detect if this is a conversational message (no desktop interaction needed)
+    const conversationalPatterns = [
+      /^(hi|hello|hey|greetings|good morning|good afternoon|good evening)[\s!.]*$/i,
+      /^(how are you|what's up|wassup|sup)[\s!?.]*$/i,
+      /^(thanks|thank you|thx|ty)[\s!.]*$/i,
+      /^(bye|goodbye|see you|cya)[\s!.]*$/i,
+      /^(what can you do|help|what are your capabilities)[\s!?.]*$/i,
+      /^(ok|okay|cool|nice|great|awesome|good job)[\s!.]*$/i
+    ];
+    
+    const isConversational = conversationalPatterns.some(pattern => pattern.test(message.trim()));
+    
+    if (isConversational && (mode === 'desktop' || mode === 'windows')) {
+      console.log('💬 Detected conversational message in Gemini handler, using simple response mode');
+      
+      // Use a simple conversational prompt instead of the complex desktop prompt
+      const conversationalPrompt = `You are a friendly, general-purpose AI assistant having a casual conversation.
+
+CRITICAL RULES:
+1. DO NOT mention "Windows desktop", "desktop control", "desktop tasks", or any technical capabilities
+2. DO NOT offer to help with computer tasks, screenshots, or system operations
+3. Respond ONLY as a conversational assistant
+4. Keep responses SHORT and NATURAL
+
+For "hello" or similar greetings, respond with ONLY:
+- "Hello! How can I help you today?"
+- "Hi there! What can I assist you with?"
+- "Hey! What's up?"
+
+DO NOT add anything about desktop, Windows, or technical tasks. Just be friendly and conversational.`;
+      
+      // Build conversation history for Gemini
+      const contents = [
+        ...history.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        })),
+        {
+          role: 'user',
+          parts: [{ text: message }]
+        }
+      ];
+
+      // Make simple API call WITH streaming
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ 
+        model: requestedModel,
+        systemInstruction: conversationalPrompt
+      });
+
+      const result = await model.generateContentStream({
+        contents: contents
+      });
+
+      // Set up streaming response
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) {
+          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: text })}\n`);
+          if (res.flush) res.flush();
+        }
+      }
+
+      res.write(`0:${JSON.stringify({ type: 'finish', finishReason: 'stop' })}\n`);
+      if (res.flush) res.flush();
+      res.end();
+      
+      console.log('✅ Conversational response streamed successfully (Gemini)');
+      return;
+    }
+
     // Get project details to determine OS
     let operatingSystem = 'kali-linux'; // Default
     if (projectId) {
@@ -3665,11 +7063,37 @@ END OF CUSTOM MODE
       }
     }
 
-    // Get MCP tools for Gemini
-    const mcpTools = await getMCPToolsForGemini();
-    const useMCPTools = mcpTools.length > 0 && mcpClient && mcpClient.isClientConnected();
+    // Check if this is a Windows project and initialize Windows client
+    let windowsClient = null;
+    let windowsTools = [];
+    
+    if (operatingSystem === 'windows-11' || operatingSystem === 'windows-10') {
+      console.log('🪟 Windows project detected, loading Windows tools...');
+      
+      try {
+        // Get Windows MCP tools (filtered by mode)
+        const { getWindowsMCPToolsForGemini } = require('./windows-mcp-tools');
+        windowsTools = await getWindowsMCPToolsForGemini(mode);
+        console.log(`🔧 Filtered to ${windowsTools.length} tools for ${mode} mode`);
+        console.log(`✅ Loaded ${windowsTools.length} Windows tools for Gemini`);
+        
+        // Initialize Windows MCP client
+        const { getWindowsMCPClient } = require('./mcp-client-pool');
+        windowsClient = await getWindowsMCPClient(projectId);
+        console.log(`✅ Windows client initialized`);
+      } catch (err) {
+        console.error(`❌ Failed to load Windows tools:`, err.message);
+      }
+    }
 
-    if (useMCPTools) {
+    // Get MCP tools for Gemini (for Linux/Unix systems)
+    const mcpTools = windowsTools.length > 0 ? [] : await getMCPToolsForGemini();
+    const useMCPTools = mcpTools.length > 0 && mcpClient && mcpClient.isClientConnected();
+    const useWindowsTools = windowsTools.length > 0 && windowsClient;
+
+    if (useWindowsTools) {
+      console.log(`✅ Using ${windowsTools.length} Windows tools`);
+    } else if (useMCPTools) {
       console.log(`✅ Using ${mcpTools.length} MCP tools for command execution`);
     } else {
       console.log('⚠️  MCP tools not available, AI will respond without tool execution');
@@ -3764,24 +7188,92 @@ The conversation history is automatically included in your context. Use it to ma
       if (chunkText) {
         fullResponse += chunkText;
         
-        // Stream text chunks immediately
-        const chunkSize = 5;
-        for (let i = 0; i < chunkText.length; i += chunkSize) {
-          const textChunk = chunkText.slice(i, i + chunkSize);
-          res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: textChunk })}\n`);
+        // 🚨 CRITICAL: Filter out malformed <tool_call> tags in real-time
+        let textToStream = chunkText;
+        
+        // Remove tool_call tags and their content
+        textToStream = textToStream
+          .replace(/<tool_call>/gi, '')
+          .replace(/<\/tool_call>/gi, '')
+          .replace(/\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*[^}]*\}/gi, '');
+        
+        // Filter incomplete JSON patterns
+        if (textToStream.includes('"name"') && textToStream.includes('"arguments"')) {
+          console.log(`🧹 Filtering tool call JSON from Gemini stream chunk`);
+          textToStream = textToStream.replace(/\{\s*"name"[^}]*$/gi, '');
         }
-        console.log(`📝 Streamed ${chunkText.length} characters`);
+        
+        // 🚨 CRITICAL: Filter completion messages in real-time
+        // Remove: "Done.", "✅ Task complete.", and similar patterns
+        textToStream = textToStream
+          .replace(/Done\.\s*$/gi, '')
+          .replace(/✅\s*Task\s+complete\.\s*$/gi, '')
+          .replace(/Done\.\s*✅\s*Task\s+complete\.\s*$/gi, '')
+          .replace(/✅\s*Task\s+complete\.\s*Done\.\s*$/gi, '');
+        
+        // Stream text chunks immediately (only if there's content after filtering)
+        if (textToStream.trim()) {
+          const chunkSize = 5;
+          for (let i = 0; i < textToStream.length; i += chunkSize) {
+            const textChunk = textToStream.slice(i, i + chunkSize);
+            res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: textChunk })}\n`);
+          }
+          console.log(`📝 Streamed ${textToStream.length} characters`);
+        }
       }
       
       // Check for function calls in this chunk
-      if (chunk.functionCalls && chunk.functionCalls().length > 0) {
-        functionCalls = chunk.functionCalls();
-        console.log(`🔧 Function calls detected in stream: ${functionCalls.length}`);
+      try {
+        if (chunk.functionCalls && typeof chunk.functionCalls === 'function') {
+          const calls = chunk.functionCalls();
+          if (calls && calls.length > 0) {
+            functionCalls = calls;
+            console.log(`🔧 Function calls detected in stream: ${functionCalls.length}`);
+          }
+        }
+      } catch (funcCallError) {
+        console.warn(`⚠️  Error checking function calls:`, funcCallError.message);
       }
     }
     
     // Get the final response
     const response = await streamResult.response;
+    
+    // Check for text-based tool calls in the full response
+    if (functionCalls.length === 0 && fullResponse) {
+      const { extractToolCall, normalizeToolName } = require('./text-tool-call-parser');
+      const toolCallMatch = extractToolCall(fullResponse);
+      
+      if (toolCallMatch) {
+        console.log(`🔍 DETECTED TEXT-BASED TOOL CALL: ${toolCallMatch.functionName}`);
+        console.log(`   Args:`, toolCallMatch.args);
+        
+        const normalizedName = normalizeToolName(toolCallMatch.functionName);
+        
+        // Check if this is explicit syntax (should be hidden) or natural language (should be kept)
+        const explicitSyntaxPattern = /\[Calls?:\s*([a-zA-Z_][a-zA-Z0-9_]*)\((\{[^}]*\}|[^)]*)\)\]/i;
+        const isExplicitSyntax = explicitSyntaxPattern.test(toolCallMatch.fullMatch);
+        
+        if (isExplicitSyntax) {
+          console.log(`📤 Sending text-replace event to hide explicit syntax`);
+          const cleanedText = toolCallMatch.textBefore + (toolCallMatch.textAfter ? ' ' + toolCallMatch.textAfter : '');
+          res.write(`0:${JSON.stringify({ 
+            type: 'text-replace', 
+            text: cleanedText 
+          })}\n`);
+          fullResponse = cleanedText;
+        }
+        
+        // Convert text-based tool call to Gemini function call format
+        functionCalls.push({
+          name: normalizedName,
+          args: toolCallMatch.args,
+          _fromText: true
+        });
+        
+        console.log(`✅ Converted text tool call to function call: ${normalizedName}`);
+      }
+    }
     
     // If no function calls were found in stream, check the final response
     if (functionCalls.length === 0) {
@@ -3799,15 +7291,79 @@ The conversation history is automatically included in your context. Use it to ma
 
     console.log(`🔧 Total function calls to process: ${functionCalls.length}`);
 
-    // Handle MCP tool calls
-    // Handle MCP tool calls - NO LOOP, process only first tool call
+    // Handle tool calls - NO LOOP, process only first tool call
     if (functionCalls && functionCalls.length > 0) {
       const functionCall = functionCalls[0];
       
       console.log(`🔧 Processing tool call: ${functionCall.name}`);
 
+      // Handle Windows tool calls
+      if (useWindowsTools && windowsClient && windowsTools.some(t => t.name === functionCall.name)) {
+        console.log(`🪟 Executing Windows tool: ${functionCall.name}`);
+        
+        try {
+          // Convert tool name: windows_take_screenshot → take_screenshot
+          const toolName = functionCall.name.replace('windows_', '');
+          console.log(`🔧 Converted tool name: ${functionCall.name} → ${toolName}`);
+          
+          // Execute the Windows tool
+          const toolResult = await windowsClient.executeTool(toolName, functionCall.args || {});
+          console.log(`✅ Windows tool executed:`, toolResult);
+          
+          // Send tool-call-start event
+          res.write(`0:${JSON.stringify({
+            type: 'tool-call-start',
+            toolCallId: 'gemini_' + Date.now(),
+            toolName: functionCall.name,
+            args: functionCall.args || {}
+          })}\n`);
+          
+          // Send tool output
+          res.write(`0:${JSON.stringify({
+            type: 'desktop-tool-output',
+            toolCallId: 'gemini_' + Date.now(),
+            toolName: functionCall.name,
+            args: functionCall.args || {},
+            output: toolResult.output || toolResult.message || 'Tool executed',
+            status: toolResult.success ? 'success' : 'error'
+          })}\n`);
+          
+          console.log(`✅ Tool execution complete, requesting continuation for verification...`);
+          
+          // Send function response back to model for analysis
+          const toolResponseStream = await chat.sendMessageStream([{
+            functionResponse: {
+              name: functionCall.name,
+              response: { output: toolResult.output || toolResult.message || 'Tool executed successfully' }
+            }
+          }]);
+          
+          console.log(`✅ Continuation stream started, streaming AI analysis...`);
+          
+          // Stream the model's analysis
+          let analysisChars = 0;
+          for await (const chunk of toolResponseStream.stream) {
+            const chunkText = chunk.text();
+            
+            if (chunkText) {
+              analysisChars += chunkText.length;
+              
+              // Stream text chunks immediately
+              const chunkSize = 5;
+              for (let i = 0; i < chunkText.length; i += chunkSize) {
+                const textChunk = chunkText.slice(i, i + chunkSize);
+                res.write(`0:${JSON.stringify({ type: 'text-delta', textDelta: textChunk })}\n`);
+              }
+            }
+          }
+          
+          console.log(`✅ AI analysis complete: ${analysisChars} chars generated`);
+        } catch (toolError) {
+          console.error(`❌ Windows tool execution error:`, toolError);
+        }
+      }
       // Handle MCP tool calls
-      if (useMCPTools && mcpTools.some(t => t.name === functionCall.name)) {
+      else if (useMCPTools && mcpTools.some(t => t.name === functionCall.name)) {
         const toolResult = await handleMCPToolCall(functionCall);
 
         // Track command outputs for display
@@ -3913,6 +7469,27 @@ The conversation history is automatically included in your context. Use it to ma
     if (typeof streamId !== 'undefined') {
       streamHealthMonitor.terminateStream(streamId, 'error');
     }
+    
+    // Send error message to frontend if headers already sent (streaming started)
+    if (res.headersSent) {
+      try {
+        // Send a simple network error message
+        res.write(`0:${JSON.stringify({ 
+          type: 'text-delta', 
+          textDelta: '\n\nA network error occurred. Please try again.' 
+        })}\n`);
+        res.write(`0:${JSON.stringify({ type: 'done' })}\n`);
+        if (res.flush) res.flush();
+      } catch (writeError) {
+        console.error('Failed to send error message:', writeError);
+      }
+    } else {
+      // Headers not sent yet, can send JSON error
+      res.status(500).json({
+        error: 'Chat error',
+        message: error.message
+      });
+    }
 
     // Provide user-friendly error messages
     let errorMessage = 'Failed to process message';
@@ -3929,11 +7506,17 @@ The conversation history is automatically included in your context. Use it to ma
       statusCode = 504; // Gateway Timeout
     }
 
-    res.status(statusCode).json({
-      error: errorMessage,
-      details: error.message,
-      retryable: statusCode === 503 || statusCode === 504
-    });
+    // Check if headers were already sent before sending error response
+    if (!res.headersSent) {
+      res.status(statusCode).json({
+        error: errorMessage,
+        details: error.message,
+        retryable: statusCode === 503 || statusCode === 504
+      });
+    } else {
+      // Headers already sent, just log the error
+      console.error('   Error occurred after headers were sent - cannot send error response');
+    }
   }
 }
 

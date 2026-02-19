@@ -45,7 +45,15 @@ export function DeleteProjectModal({ isOpen, projectName, onClose, onConfirm }: 
   const isValid = confirmText === 'delete'
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]"
+      onClick={(e) => {
+        // Close modal when clicking backdrop (but not when clicking the modal itself)
+        if (e.target === e.currentTarget && !isDeleting) {
+          handleClose()
+        }
+      }}
+    >
       <div className="rounded-lg p-6 w-full max-w-md relative z-[10000]" style={{ backgroundColor: '#0A0A0A', borderColor: '#27272A', borderWidth: '1px' }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">

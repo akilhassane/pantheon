@@ -52,6 +52,11 @@ export class SettingsManager {
 
       const validated = this.validate(settings)
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(validated))
+      
+      // Dispatch custom event to notify other components
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('settings-updated'))
+      }
     } catch (error) {
       console.error('❌ Failed to save settings:', error)
       throw new Error('Failed to save settings')
