@@ -4,9 +4,9 @@ Enterprise-grade AI backend system with Windows VM integration, multi-model AI s
 
 ## Platform Demo
 
-https://github.com/user-attachments/assets/your-video-id-here
+![Platform Demo](media/platform-demo.gif)
 
-> Upload `media/platform-demo-compressed.mp4` to GitHub and replace the URL above. The video demonstrates the complete Pantheon platform including project creation, Windows VM management, and AI model integration.
+The demo shows the complete Pantheon platform including project creation, Windows VM management, and AI model integration.
 
 ## Table of Contents
 
