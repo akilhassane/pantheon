@@ -6,7 +6,7 @@ Enterprise-grade AI backend system with Windows VM integration, multi-model AI s
 
 https://github.com/user-attachments/assets/your-video-id-here
 
-> Note: The video above demonstrates the complete Pantheon platform including project creation, Windows VM management, and AI model integration.
+> Upload `media/platform-demo-compressed.mp4` to GitHub and replace the URL above. The video demonstrates the complete Pantheon platform including project creation, Windows VM management, and AI model integration.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/your-video-id-here
   - [Environment Setup](docs/CONFIGURATION.md#environment-setup)
   - [Keycloak Configuration](docs/KEYCLOAK_SETUP.md)
   - [Model Configuration](docs/MODEL_CONFIGURATION.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Deployment Guide](DEPLOYMENT.md)
 - [Usage Guide](docs/USAGE.md)
 - [API Documentation](docs/API.md)
 - [Network Architecture](docs/NETWORK.md)
@@ -47,9 +47,9 @@ Pantheon is a comprehensive AI backend platform designed for enterprise deployme
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
 | Multi-Model AI | Support for 100+ AI models through unified API | [Model Configuration](docs/MODEL_CONFIGURATION.md) |
-| Windows VM | Isolated Windows 11 VMs with MCP protocol | [VM Management](docs/VM_MANAGEMENT.md) |
+| Windows VM | Isolated Windows 11 VMs with MCP protocol | [Usage Guide](docs/USAGE.md) |
 | Authentication | OAuth 2.0 with Keycloak | [Keycloak Setup](docs/KEYCLOAK_SETUP.md) |
-| Database | PostgreSQL with automatic migrations | [Database Guide](docs/DATABASE.md) |
+| Database | PostgreSQL with automatic migrations | [Installation Guide](docs/INSTALLATION.md) |
 | Network Isolation | Project-based network segmentation | [Network Architecture](docs/NETWORK.md) |
 | API Management | User-specific API keys with usage tracking | [API Documentation](docs/API.md) |
 
@@ -213,7 +213,6 @@ Options:
 
 ### Operations
 
-- [Deployment Guide](DEPLOYMENT.md) - Production deployment
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## Contributing

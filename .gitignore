@@ -47,19 +47,7 @@ temp-*
 *.tmp
 *.temp
 
-# Documentation (markdown files)
-*.md
-!README.md
-!QUICKSTART.md
-!DEPLOYMENT.md
-!DEPLOYMENT_SUMMARY.md
-!DEPLOYMENT_STATUS.md
-!ACTION_CHECKLIST.md
-!NETWORK_ARCHITECTURE.md
-!START_HERE.md
-!LICENSE
-
-# Screenshots
+# Screenshots (but not media folder)
 screenshots/
 
 # VM files
@@ -94,10 +82,7 @@ __pycache__/
 # Vercel
 .vercel/
 
-# Git
-.git/
-
-# Scripts (keep only essential ones)
+# Temporary scripts and configs
 call-*.cjs
 call-*.js
 check-*.cjs
@@ -126,18 +111,7 @@ update-*.ps1
 update-*.sql
 verify-*.cjs
 
-# Temporary scripts and configs
-shared-folder-nginx.conf
-setup-dnat.sh
-fix-socat-script.sh
-
-# JSON data files
+# Temporary JSON data files
 all_screen_elements.json
 screenshot-*.json
 temp_project_id.txt
-
-# OAuth setup files with secrets
-KEYCLOAK_CHECKLIST.md
-KEYCLOAK_CONFIGURATION_GUIDE.md
-KEYCLOAK_OAUTH_SETUP.md
-OAUTH_SETUP_GUIDE.md
