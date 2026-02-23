@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PowerShell</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      background: #012456;
+      overflow: hidden;
+    }
+    #terminal { 
+      width: 100vw;
+      height: 100vh;
+      padding: 10px;
+    }
+    .xterm {
+      height: 100%;
+    }
+    .xterm-viewport {
+      background-color: #012456 !important;
+    }
+    .xterm-screen {
+      background-color: #012456 !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="terminal"></div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script>
+    const term = new Terminal({
+      cursorBlink: true,
+      cursorStyle: 'block',
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: 12,
+      theme: {
+        background: '#012456',
+        foreground: '#EEEDF0',
+        cursor: '#EEEDF0',
+        cursorAccent: '#012456',
+        black: '#000000',
+        red: '#E74856',
+        green: '#13A10E',
+        yellow: '#F9F1A5',
+        blue: '#3B78FF',
+        magenta: '#881798',
+        cyan: '#3A96DD',
+        white: '#CCCCCC',
+        brightBlack: '#767676',
+        brightRed: '#E74856',
+        brightGreen: '#13A10E',
+        brightYellow: '#F9F1A5',
+        brightBlue: '#3B78FF',
+        brightMagenta: '#B4009E',
+        brightCyan: '#61D6D6',
+        brightWhite: '#F2F2F2'
+      }
+    });
+    
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    
+    term.open(document.getElementById('terminal'));
+    fitAddon.fit();
+    
+    // Get or create session ID
+    let sessionId = localStorage.getItem('terminalSessionId');
+    if (!sessionId) {
+      // Fetch shared session ID from server
+      fetch('/session')
+        .then(r => r.json())
+        .then(data => {
+          sessionId = data.sessionId;
+          localStorage.setItem('terminalSessionId', sessionId);
+          connectWebSocket(sessionId);
+        })
+        .catch(() => {
+          // Fallback to shared session
+          sessionId = 'shared-windows-session';
+          localStorage.setItem('terminalSessionId', sessionId);
+          connectWebSocket(sessionId);
+        });
+    } else {
+      connectWebSocket(sessionId);
+    }
+    
+    function connectWebSocket(sessionId) {
+      // Connect WebSocket to Cloudflare tunnel
+      const tunnelUrl = 'wss://indication-yarn-head-dollar.trycloudflare.com';
+      const wsUrl = `${tunnelUrl}?sessionId=${sessionId}`;
+      
+      console.log('🔌 Connecting to WebSocket:', wsUrl);
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('✅ WebSocket connected');
+        // Send terminal size IMMEDIATELY before focusing
+        ws.send(JSON.stringify({
+          type: 'resize',
+          cols: term.cols,
+          rows: term.rows
+        }));
+        
+        term.focus();
+      };
+    
+      ws.onmessage = (event) => {
+        term.write(event.data);
+        // Scroll to bottom when new content arrives
+        term.scrollToBottom();
+      };
+      
+      term.onData((data) => {
+        ws.send(data);
+      });
+      
+      term.onResize((size) => {
+        ws.send(JSON.stringify({
+          type: 'resize',
+          cols: size.cols,
+          rows: size.rows
+        }));
+      });
+      
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+      });
+      
+      // Connection stability improvements
+      let reconnectAttempts = 0;
+      const maxReconnectAttempts = 5;
+      
+      function reconnect() {
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          term.write(`\r\n\x1b[33mReconnecting... (attempt ${reconnectAttempts}/${maxReconnectAttempts})\x1b[0m\r\n`);
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          term.write('\r\n\x1b[31mMax reconnection attempts reached. Please refresh the page.\x1b[0m\r\n');
+        }
+      }
+      
+      ws.onerror = (error) => {
+        console.error('❌ WebSocket error:', error);
+        term.write('\r\n\x1b[31mConnection error!\x1b[0m\r\n');
+      };
+      
+      ws.onclose = (event) => {
+        console.log('🔌 WebSocket closed:', event.code, event.reason);
+        term.write('\r\n\x1b[31mConnection closed!\x1b[0m\r\n');
+        if (event.code !== 1000) { // Not a normal closure
+          reconnect();
+        }
+      };
+    }
+  </script>
+</body>
+</html>

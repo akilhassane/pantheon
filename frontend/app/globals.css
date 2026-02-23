@@ -1,0 +1,2693 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 217 16% 7%;
+    --sidebar-foreground: 0 0% 82%;
+    --sidebar-primary: 217 16% 7%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 18%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+/* CRITICAL: Disable ALL animations on chat messages to prevent flicker */
+/* BUT keep animations for loading indicators */
+.space-y-3:not(:has(.animate-bounce)),
+.space-y-3 > *:not(:has(.animate-bounce)),
+.space-y-4:not(:has(.animate-bounce)),
+.space-y-4 > *:not(:has(.animate-bounce)),
+.flex.justify-start:not(:has(.animate-bounce)),
+.flex.justify-end:not(:has(.animate-bounce)),
+.max-w-4xl > *:not(:has(.animate-bounce)) {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* Disable view transitions on chat */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none !important;
+}
+
+:root {
+  --color-jet: 0 0% 4%;
+  --color-charcoal: 0 0% 10%;
+  --color-umbra: 221 12% 14%;
+  --color-ink: 213 11% 16%;
+  --color-ash: 216 5% 19%;
+  --color-steel: 216 4% 22%;
+  --color-fog: 216 4% 51%;
+  --color-pewter: 213 12% 70%;
+  --color-dove: 222 19% 86%;
+  --color-nimbus: 228 21.74% 95.49%;
+  --color-ivory: 40 18% 97%;
+  --color-white: 0 0% 100%;
+  --color-midnight: 214 58.3% 9.4%;
+  --color-evenfall: 214 16.1% 28%;
+  --color-breeze: 214 48.9% 73.9%;
+  --color-dawn: 37 100% 76%;
+  --color-sunset: 22 100% 51.6%;
+  --color-dusk: 263 70% 50.4%;
+  --color-twilight: 255 92% 76%;
+  --color-zinc: 240 5% 16%;
+  
+  --primary: var(--color-white);
+  --primary-hover: var(--color-ivory);
+  --secondary: var(--color-fog);
+  --secondary-hover: var(--color-pewter);
+  --accent: var(--color-zinc);
+  --accent-hover: var(--color-steel);
+  --background: var(--color-jet);
+  --background-hover: var(--color-umbra);
+  --foreground: var(--color-dove);
+  --foreground-hover: var(--color-white);
+  --card: var(--color-ivory);
+  --border: var(--color-dove);
+  --input: var(--color-white);
+  --font-universal-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  --font-geist-mono: 'Monaco', 'Courier New', monospace;
+}
+
+.dark {
+  --primary: var(--color-white);
+  --primary-hover: var(--color-ivory);
+  --secondary: var(--color-fog);
+  --secondary-hover: var(--color-pewter);
+  --accent: var(--color-zinc);
+  --accent-hover: var(--color-steel);
+  --background: var(--color-jet);
+  --background-hover: var(--color-umbra);
+  --foreground: var(--color-dove);
+  --foreground-hover: var(--color-white);
+  --card: var(--color-charcoal);
+  --border: var(--color-umbra);
+  --input: var(--color-fog);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-universal-sans);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  background-color: #0A0A0A;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  margin: 0;
+  line-height: inherit;
+  overscroll-behavior-y: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}
+
+textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.order-text-fadeout {
+  animation: fadeOut 1s ease-out forwards;
+}
+
+@keyframes stripedAppear {
+  0% {
+    mask-image: linear-gradient(to right, transparent 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 100%);
+  }
+  100% {
+    mask-image: linear-gradient(90deg, 
+      transparent 0%, 
+      black 2%, black 4%,
+      transparent 6%, 
+      black 8%, black 10%,
+      transparent 12%, 
+      black 14%, black 16%,
+      transparent 18%,
+      black 20%, black 22%,
+      transparent 24%,
+      black 26%, black 28%,
+      transparent 30%,
+      black 32%, black 34%,
+      transparent 36%,
+      black 38%, black 40%,
+      transparent 42%,
+      black 44%, black 46%,
+      transparent 48%,
+      black 50%, black 52%,
+      transparent 54%,
+      black 56%, black 58%,
+      transparent 60%,
+      black 62%, black 64%,
+      transparent 66%,
+      black 68%, black 70%,
+      transparent 72%,
+      black 74%, black 76%,
+      transparent 78%,
+      black 80%, black 82%,
+      transparent 84%,
+      black 86%, black 88%,
+      transparent 90%,
+      black 92%, black 94%,
+      transparent 96%, black 100%
+    );
+    -webkit-mask-image: linear-gradient(90deg, 
+      transparent 0%, 
+      black 2%, black 4%,
+      transparent 6%, 
+      black 8%, black 10%,
+      transparent 12%, 
+      black 14%, black 16%,
+      transparent 18%,
+      black 20%, black 22%,
+      transparent 24%,
+      black 26%, black 28%,
+      transparent 30%,
+      black 32%, black 34%,
+      transparent 36%,
+      black 38%, black 40%,
+      transparent 42%,
+      black 44%, black 46%,
+      transparent 48%,
+      black 50%, black 52%,
+      transparent 54%,
+      black 56%, black 58%,
+      transparent 60%,
+      black 62%, black 64%,
+      transparent 66%,
+      black 68%, black 70%,
+      transparent 72%,
+      black 74%, black 76%,
+      transparent 78%,
+      black 80%, black 82%,
+      transparent 84%,
+      black 86%, black 88%,
+      transparent 90%,
+      black 92%, black 94%,
+      transparent 96%, black 100%
+    );
+  }
+}
+
+@keyframes stripedDisappear {
+  0% {
+    mask-image: linear-gradient(90deg, 
+      transparent 0%, 
+      black 2%, black 4%,
+      transparent 6%, 
+      black 8%, black 10%,
+      transparent 12%, 
+      black 14%, black 16%,
+      transparent 18%,
+      black 20%, black 22%,
+      transparent 24%,
+      black 26%, black 28%,
+      transparent 30%,
+      black 32%, black 34%,
+      transparent 36%,
+      black 38%, black 40%,
+      transparent 42%,
+      black 44%, black 46%,
+      transparent 48%,
+      black 50%, black 52%,
+      transparent 54%,
+      black 56%, black 58%,
+      transparent 60%,
+      black 62%, black 64%,
+      transparent 66%,
+      black 68%, black 70%,
+      transparent 72%,
+      black 74%, black 76%,
+      transparent 78%,
+      black 80%, black 82%,
+      transparent 84%,
+      black 86%, black 88%,
+      transparent 90%,
+      black 92%, black 94%,
+      transparent 96%, black 100%
+    );
+    -webkit-mask-image: linear-gradient(90deg, 
+      transparent 0%, 
+      black 2%, black 4%,
+      transparent 6%, 
+      black 8%, black 10%,
+      transparent 12%, 
+      black 14%, black 16%,
+      transparent 18%,
+      black 20%, black 22%,
+      transparent 24%,
+      black 26%, black 28%,
+      transparent 30%,
+      black 32%, black 34%,
+      transparent 36%,
+      black 38%, black 40%,
+      transparent 42%,
+      black 44%, black 46%,
+      transparent 48%,
+      black 50%, black 52%,
+      transparent 54%,
+      black 56%, black 58%,
+      transparent 60%,
+      black 62%, black 64%,
+      transparent 66%,
+      black 68%, black 70%,
+      transparent 72%,
+      black 74%, black 76%,
+      transparent 78%,
+      black 80%, black 82%,
+      transparent 84%,
+      black 86%, black 88%,
+      transparent 90%,
+      black 92%, black 94%,
+      transparent 96%, black 100%
+    );
+  }
+  100% {
+    mask-image: linear-gradient(to right, transparent 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 100%);
+  }
+}
+
+.striped-text {
+  animation: stripedAppear 2s ease-in-out forwards;
+}
+
+.striped-text-disappear {
+  animation: stripedDisappear 2s ease-in-out forwards;
+}
+
+@keyframes rollDown {
+  0% {
+    transform: translateY(-35vh);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.chat-input-initial {
+  transform: translateY(-35vh);
+  opacity: 1;
+}
+
+.chat-input-rolldown {
+  animation: rollDown 1s ease-in-out forwards;
+}
+
+.gradient-text-create {
+  background: linear-gradient(to right, #60a5fa, #93c5fd, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-order {
+  background: linear-gradient(to right, #3b82f6, #0ea5e9, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sidebar slide-in animation */
+@keyframes sidebarSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sidebarSlideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.sidebar-slide-in {
+  animation: sidebarSlideIn 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.sidebar-slide-out {
+  animation: sidebarSlideOut 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Message fade-in animation */
+@keyframes messageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-fade-in {
+  animation: messageFadeIn 300ms ease-out forwards;
+}
+
+/* Message part fade-in animation (for thinking, tool calls, results) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  opacity: 0;
+}
+
+/* Professional AI Editor Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(100, 116, 139, 0.5), rgba(71, 85, 105, 0.5));
+  border-radius: 10px;
+  border: 2px solid rgba(15, 23, 42, 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.6), rgba(100, 116, 139, 0.6));
+}
+
+/* Smooth transitions for all interactive elements */
+.transition-smooth {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphism effect */
+.glass-effect {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Glow effect for active elements */
+.glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+}
+
+/* Code block syntax highlighting - HIGHEST SPECIFICITY */
+.prose code,
+code.inline-code-override,
+.prose code.inline-code-override,
+div.prose code {
+  display: inline !important;
+  background: rgba(100, 116, 139, 0.15) !important;
+  padding: 1px 3px !important;
+  border-radius: 2px !important;
+  font-size: 0.88em !important;
+  font-family: monospace !important;
+  font-weight: 400 !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+  line-height: inherit !important;
+  vertical-align: baseline !important;
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+/* Remove backticks added by prose plugin */
+.prose code::before,
+.prose code::after {
+  content: '' !important;
+  display: none !important;
+}
+
+/* Code blocks (pre > code) - FORCE BACKGROUND COLOR */
+.prose pre,
+.prose pre[class*="language-"],
+div.prose pre {
+  background-color: #22252F !important;
+  padding: 0.5rem !important;
+  border-radius: 0.25rem !important;
+  overflow-x: auto !important;
+  margin: 0.5rem 0 !important;
+}
+
+.prose pre code,
+.prose pre[class*="language-"] code,
+div.prose pre code {
+  display: block !important;
+  background-color: #22252F !important;
+  background: #22252F !important;
+  padding: 0 !important;
+  white-space: pre !important;
+  color: #cccccc !important;
+  font-size: 13px !important;
+}
+
+/* Override for inline code specifically */
+.inline-code-override {
+  display: inline !important;
+  background: rgba(100, 116, 139, 0.15) !important;
+  padding: 1px 3px !important;
+  border-radius: 2px !important;
+  font-size: 0.88em !important;
+  font-family: monospace !important;
+  font-weight: 400 !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+}
+
+.inline-code-override::before,
+.inline-code-override::after {
+  content: '' !important;
+  display: none !important;
+}
+
+/* Markdown prose styling for proper rendering */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.prose h1 {
+  font-size: 1.5em;
+}
+
+.prose h2 {
+  font-size: 1.3em;
+}
+
+.prose h3 {
+  font-size: 1.1em;
+}
+
+.prose h4, .prose h5, .prose h6 {
+  font-size: 1em;
+}
+
+.prose strong {
+  display: inline;
+  font-weight: 600;
+  color: inherit;
+}
+
+.prose em {
+  display: inline;
+  font-style: italic;
+}
+
+.prose ul, .prose ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-left: 1.5em;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.prose p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.prose a:hover {
+  color: #93c5fd;
+}
+
+.prose blockquote {
+  border-left: 3px solid #4b5563;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+.prose hr {
+  border: none;
+  border-top: 1px solid #374151;
+  margin: 1em 0;
+}
+
+/* Message animations */
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideInFromBottom 0.3s ease-out;
+}
+
+/* Command block hover effects */
+.command-block-hover {
+  transition: all 0.2s ease;
+}
+
+.command-block-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Pulse animation for status indicators */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px currentColor;
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 16px currentColor;
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Minimalist Focus States */
+.chat-input-focus:focus-within {
+  border: 1px solid #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+/* Terminal focus state - show blue border when iframe inside is focused */
+.terminal-focus-container:focus-within {
+  outline: 1px solid #3b82f6;
+  outline-offset: -1px;
+}
+
+.terminal-focus-container iframe:focus {
+  outline: none;
+}
+
+/* Dark scrollbar for terminal container */
+.terminal-focus-container {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 #0f172a;
+}
+
+.terminal-focus-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.terminal-focus-container::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.terminal-focus-container::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.terminal-focus-container::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .max-w-4xl {
+    max-width: 100%;
+  }
+  
+  .chat-input-container {
+    padding: 0.5rem;
+  }
+  
+  textarea {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+  
+  button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Full width chat on mobile */
+  .chat-sidebar-mobile {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+  
+  /* Stack layout on mobile */
+  .mobile-stack {
+    flex-direction: column;
+  }
+  
+  /* Bottom-fixed input on mobile */
+  .mobile-input-fixed {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: #000;
+    padding: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Adjust chat messages for mobile */
+  .chat-messages-mobile {
+    padding-bottom: 120px; /* Space for fixed input */
+    max-height: calc(100vh - 140px);
+  }
+  
+  /* Touch-friendly buttons */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 12px;
+  }
+  
+  /* Model selector on mobile */
+  .model-selector-mobile {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 640px) and (max-width: 1024px) {
+  .chat-sidebar-tablet {
+    width: 400px !important;
+  }
+}
+
+/* Keyboard handling on mobile */
+@media (max-height: 500px) {
+  .chat-messages {
+    max-height: calc(100vh - 200px);
+  }
+  
+  .mobile-input-fixed {
+    position: relative;
+  }
+}
+
+/* Landscape mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .chat-messages-mobile {
+    max-height: calc(100vh - 100px);
+  }
+}
+
+/* Touch action optimization */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    touch-action: manipulation;
+  }
+  
+  button, a {
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Prevent body scroll when keyboard is open on mobile */
+body.keyboard-open {
+  position: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Model selector icon - white, no background */
+.model-selector-icon {
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+/* Send button - white background */
+.send-button-circle {
+  background-color: #ffffff;
+  color: #000000;
+  border-radius: 50%;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.send-button-circle:hover:not(:disabled) {
+  background-color: #f3f4f6;
+  transform: scale(1.05);
+}
+
+.send-button-circle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mermaid diagram styles */
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.mermaid-diagram {
+  background: transparent;
+  min-height: 200px;
+  width: 100%;
+}
+
+/* Ensure Mermaid text is visible on dark background */
+.mermaid-diagram svg text {
+  fill: #e5e7eb !important;
+}
+
+.mermaid-diagram svg .node rect,
+.mermaid-diagram svg .node circle,
+.mermaid-diagram svg .node ellipse,
+.mermaid-diagram svg .node polygon {
+  fill: #1e40af !important;
+  stroke: #3b82f6 !important;
+  stroke-width: 2px;
+}
+
+.mermaid-diagram svg .edgePath path {
+  stroke: #60a5fa !important;
+  stroke-width: 2px;
+}
+
+.mermaid-diagram svg .arrowheadPath {
+  fill: #60a5fa !important;
+  stroke: #60a5fa !important;
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Neon blue corner borders for sidebar buttons */
+.neon-corner-button {
+  position: relative;
+  background: transparent !important;
+  border: 1px solid transparent;
+}
+
+.neon-corner-button:hover {
+  border: 1px solid #3b82f6;
+}
+
+/* Light Theme Styles */
+.light {
+  --primary: var(--color-jet);
+  --primary-hover: var(--color-charcoal);
+  --secondary: var(--color-steel);
+  --secondary-hover: var(--color-ash);
+  --accent: var(--color-nimbus);
+  --accent-hover: var(--color-ivory);
+  --background: var(--color-white);
+  --background-hover: var(--color-nimbus);
+  --foreground: var(--color-jet);
+  --foreground-hover: var(--color-charcoal);
+  --card: var(--color-nimbus);
+  --border: var(--color-dove);
+  --input: var(--color-jet);
+}
+
+/* Light theme - Unified base color */
+.light,
+.light body,
+.light #__next,
+.light main {
+  background-color: #E5E5E5 !important;  /* Base layer - everything starts here */
+  color: #2C2C2C !important;  /* Softer than pure black */
+}
+
+.light * {
+  /* Force all elements to respect light theme */
+}
+
+/* Settings page specific */
+.light .settings-page-container {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+.light .settings-page-container .text-white {
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light .settings-nav {
+  background-color: #D0D0D0 !important;  /* Sidebar - elevated layer */
+}
+
+.light .settings-nav .text-zinc-500 {
+  color: #6b7280 !important;
+}
+
+.light .settings-nav .text-zinc-400 {
+  color: #52525b !important;
+}
+
+/* Light theme - Unified background colors */
+.light .bg-\[#0a0a0a\],
+.light .bg-\[#0A0A0A\],
+.light .bg-\[#101218\],
+.light .bg-black {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+/* Force override for any element with these specific background colors */
+.light [class*="bg-[#0a0a0a]"],
+.light [class*="bg-[#0A0A0A]"],
+.light [class*="bg-[#101218]"] {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+.light .bg-zinc-950,
+.light .bg-zinc-900,
+.light .bg-zinc-800,
+.light .bg-zinc-700,
+.light .bg-zinc-600,
+.light .bg-slate-900,
+.light .bg-slate-800,
+.light .bg-gray-900,
+.light .bg-gray-800 {
+  background-color: #E5E5E5 !important;  /* Base layer - unified */
+}
+
+/* Light theme - All text colors (softer, eye-comfortable) */
+.light .text-white {
+  color: #2C2C2C !important;  /* Softer than pure black */
+}
+
+.light .text-gray-100,
+.light .text-gray-200 {
+  color: #3A3A3A !important;  /* Soft dark gray */
+}
+
+.light .text-gray-300 {
+  color: #4A4A4A !important;  /* Medium-dark gray */
+}
+
+.light .text-gray-400 {
+  color: #5A5A5A !important;  /* Medium gray - good for secondary text */
+}
+
+.light .text-gray-500 {
+  color: #6A6A6A !important;  /* Lighter medium gray */
+}
+
+.light .text-gray-600 {
+  color: #7A7A7A !important;  /* Light gray for subtle text */
+}
+
+.light .text-zinc-100,
+.light .text-zinc-200 {
+  color: #3A3A3A !important;  /* Soft dark gray */
+}
+
+.light .text-zinc-300 {
+  color: #5A5A5A !important;  /* Medium gray */
+}
+
+.light .text-zinc-400 {
+  color: #6A6A6A !important;  /* Lighter medium gray */
+}
+
+.light .text-zinc-500 {
+  color: #7A7A7A !important;  /* Light gray */
+}
+
+.light .text-zinc-600 {
+  color: #8A8A8A !important;  /* Very light gray */
+}
+
+/* Light theme - All border colors with soft warm grays */
+.light .border-zinc-800,
+.light .border-zinc-700,
+.light .border-zinc-600,
+.light .border-\[#2d2d2d\],
+.light .border-slate-700,
+.light .border-slate-800,
+.light .border-gray-800,
+.light .border-gray-700 {
+  border-color: #B8B8B8 !important;  /* Soft medium gray borders */
+}
+
+/* Light theme - Border with opacity */
+.light .border-zinc-800\/50,
+.light .border-\[#2d2d2d\]\/30,
+.light .border-\[#16171E\]\/30 {
+  border-color: rgba(184, 184, 184, 0.5) !important;  /* Semi-transparent warm gray */
+}
+
+/* Light theme - White borders become subtle gray */
+.light .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.08) !important;  /* Very subtle border */
+}
+
+/* Light theme - Unified borders */
+.light [class*="border-[#"] {
+  border-color: #CBCBCB !important;  /* Subtle borders */
+}
+
+/* Light theme - Hover states - only place with different color */
+.light .hover\:bg-zinc-800:hover,
+.light .hover\:bg-zinc-700:hover,
+.light .hover\:bg-zinc-900:hover,
+.light .hover\:bg-\[#2d2d2d\]:hover,
+.light .hover\:bg-\[#37373d\]:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+.light .hover\:text-white:hover,
+.light .hover\:text-gray-200:hover,
+.light .hover\:text-gray-400:hover {
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light .hover\:border-zinc-700:hover {
+  border-color: #CBCBCB !important;
+}
+
+/* Light theme - Transparent overlays */
+.light .bg-zinc-900\/50,
+.light .bg-zinc-800\/50 {
+  background-color: rgba(229, 229, 229, 0.95) !important;  /* Base with opacity */
+}
+
+.light .bg-\[#424242\] {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+/* Light theme - Scrollbar */
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Light theme - Blue elements (very light blue) */
+.light .bg-blue-600 {
+  background-color: #dbeafe !important;  /* Very light blue */
+  color: #1e40af !important;  /* Dark blue text for contrast */
+}
+
+.light .bg-blue-500 {
+  background-color: #bfdbfe !important;  /* Light blue */
+  color: #1e3a8a !important;  /* Dark blue text */
+}
+
+.light .text-blue-400,
+.light .text-blue-500 {
+  color: #60a5fa !important;  /* Medium blue for visibility */
+}
+
+.light .border-blue-500 {
+  border-color: #93c5fd !important;  /* Light blue border */
+}
+
+.light .ring-blue-500 {
+  --tw-ring-color: #93c5fd !important;  /* Light blue ring */
+}
+
+.light .bg-blue-600\/10 {
+  background-color: rgba(219, 234, 254, 0.3) !important;  /* Very light blue with opacity */
+}
+
+.light .border-blue-500\/50 {
+  border-color: rgba(147, 197, 253, 0.5) !important;  /* Light blue border with opacity */
+}
+
+.light .ring-blue-500\/20 {
+  --tw-ring-color: rgba(147, 197, 253, 0.3) !important;  /* Light blue ring with opacity */
+}
+
+/* Light theme - Additional blue variations */
+.light .bg-blue-700 {
+  background-color: #bfdbfe !important;  /* Light blue */
+  color: #1e3a8a !important;
+}
+
+.light .bg-blue-800 {
+  background-color: #93c5fd !important;  /* Medium-light blue */
+  color: #1e3a8a !important;
+}
+
+.light .bg-blue-900 {
+  background-color: #dbeafe !important;  /* Very light blue */
+  color: #1e40af !important;
+}
+
+.light .text-blue-300 {
+  color: #60a5fa !important;  /* Medium blue */
+}
+
+.light .text-blue-600 {
+  color: #2563eb !important;  /* Darker blue for emphasis */
+}
+
+/* Light theme - Blue hover states */
+.light .hover\:bg-blue-600:hover,
+.light .hover\:bg-blue-700:hover {
+  background-color: #93c5fd !important;  /* Medium-light blue on hover */
+  color: #1e3a8a !important;
+}
+
+.light .hover\:text-blue-400:hover,
+.light .hover\:text-blue-500:hover {
+  color: #3b82f6 !important;  /* Brighter blue on hover */
+}
+
+/* Light theme - Blue focus states */
+.light .focus\:ring-blue-500:focus {
+  --tw-ring-color: #93c5fd !important;  /* Light blue ring */
+}
+
+.light .focus\:border-blue-500:focus {
+  border-color: #93c5fd !important;  /* Light blue border */
+}
+
+/* Light theme - Success/Error/Warning colors (keep their colors) */
+.light .bg-emerald-600,
+.light .bg-emerald-900 {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.light .bg-red-600,
+.light .bg-red-900 {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+.light .text-red-400 {
+  color: #dc2626 !important;
+}
+
+.light .bg-yellow-500,
+.light .bg-amber-900 {
+  background-color: #f59e0b !important;
+  color: #ffffff !important;
+}
+
+.light .text-yellow-400,
+.light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+/* Light theme - Inline styles override */
+.light [style*="background-color: #101218"],
+.light [style*="backgroundColor: #101218"],
+.light [style*="background-color:#101218"],
+.light [style*="backgroundColor:#101218"] {
+  background-color: #E5E5E5 !important;  /* Soft warm gray */
+}
+
+.light [style*="background: #101218"],
+.light [style*="background:#101218"] {
+  background: #ffffff !important;
+}
+
+/* Light theme - Placeholder text */
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #737373 !important;
+}
+
+/* Light theme - Focus states */
+.light .focus\:ring-blue-500:focus {
+  --tw-ring-color: #3b82f6 !important;
+}
+
+.light .focus\:border-blue-500:focus {
+  border-color: #3b82f6 !important;
+}
+
+/* Light theme - Disabled states */
+.light .disabled\:opacity-50:disabled {
+  opacity: 0.5 !important;
+}
+
+/* Light theme - Shadow adjustments - Minimal range/spread */
+.light .shadow-lg {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;  /* Tight, minimal shadow */
+}
+
+.light .shadow-xl {
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.06) !important;  /* Slightly larger but still tight */
+}
+
+.light .shadow-2xl {
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08) !important;  /* Medium but contained */
+}
+
+/* Light theme - Chat input specific shadow - very tight */
+.light [class*="chat-input"] .shadow-lg,
+.light .chat-input-container .shadow-lg {
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04) !important;  /* Extremely minimal */
+}
+
+/* Light theme - Backdrop blur */
+.light .backdrop-blur-sm {
+  backdrop-filter: blur(4px) !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Light theme - Glass effect */
+.light .glass-effect {
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Light theme - Specific component overrides */
+.light .bg-slate-900\/90 {
+  background-color: rgba(245, 245, 245, 0.95) !important;
+}
+
+.light .bg-emerald-900\/90 {
+  background-color: rgba(5, 150, 105, 0.95) !important;
+}
+
+.light .bg-red-900\/90 {
+  background-color: rgba(220, 38, 38, 0.95) !important;
+}
+
+.light .bg-amber-900\/90 {
+  background-color: rgba(245, 158, 11, 0.95) !important;
+}
+
+.light .bg-blue-900\/90 {
+  background-color: rgba(37, 99, 235, 0.95) !important;
+}
+
+
+/* Light theme - Force override for all dark backgrounds */
+.light * {
+  /* This will catch most inline styles */
+}
+
+.light div[style*="background"],
+.light div[style*="backgroundColor"] {
+  /* Override inline background styles in light mode */
+}
+
+/* Light theme - Terminal container */
+.light .terminal-focus-container {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+.light .session-manager-bar {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+}
+
+/* Light theme - Chat input and messages - Recessed layer */
+.light .chat-input-container {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+  border-color: #CBCBCB !important;  /* Subtle border */
+}
+
+.light .message-bubble {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+/* Light theme - Buttons - Base layer with hover */
+.light button {
+  color: inherit;
+}
+
+.light button:not(.bg-blue-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-yellow-500) {
+  background-color: #E5E5E5;  /* Base layer */
+  color: #2C2C2C;  /* Softer black */
+}
+
+.light button:not(.bg-blue-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-yellow-500):hover {
+  background-color: #CBCBCB;  /* Hover feedback */
+}
+
+/* Light theme - SVG icons */
+.light svg {
+  color: inherit;
+}
+
+/* Light theme - Code blocks - Recessed layer */
+.light pre,
+.light code {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light .prose code {
+  background: rgba(216, 216, 216, 0.8) !important;  /* Chat layer with opacity */
+}
+
+/* Light theme - Markdown prose styling */
+.light .prose h1, .light .prose h2, .light .prose h3, 
+.light .prose h4, .light .prose h5, .light .prose h6 {
+  color: #2C2C2C !important;
+}
+
+.light .prose strong {
+  color: #2C2C2C !important;
+}
+
+.light .prose a {
+  color: #2563eb !important;
+}
+
+.light .prose a:hover {
+  color: #3b82f6 !important;
+}
+
+.light .prose blockquote {
+  border-left-color: #CBCBCB !important;
+  color: #6A6A6A !important;
+}
+
+.light .prose hr {
+  border-top-color: #CBCBCB !important;
+}
+
+/* Light theme - Mermaid diagrams */
+.light .mermaid-diagram svg text {
+  fill: #2C2C2C !important;  /* Softer black */
+}
+
+.light .mermaid-diagram svg .node rect,
+.light .mermaid-diagram svg .node circle,
+.light .mermaid-diagram svg .node ellipse,
+.light .mermaid-diagram svg .node polygon {
+  fill: #D8E4F8 !important;  /* Soft light blue */
+  stroke: #5B8FD9 !important;  /* Medium blue - easier on eyes */
+}
+
+
+/* Light theme - Force override ALL #0a0a0a backgrounds with gray shades */
+.light [class*="bg-[#0a0a0a]"],
+.light [class*="bg-[#0A0A0A]"] {
+  background-color: #f8f9fa !important;  /* Very light gray */
+}
+
+/* Light theme - Model dropdown and other overlays */
+.light [class*="bg-[#0a0a0a]/95"],
+.light [class*="bg-[#0A0A0A]/95"] {
+  background-color: rgba(248, 249, 250, 0.98) !important;  /* Almost opaque light gray */
+}
+
+/* Light theme - All variations of #0a0a0a with opacity */
+.light [class*="bg-[#0a0a0a]/"],
+.light [class*="bg-[#0A0A0A]/"] {
+  background-color: rgba(248, 249, 250, 0.95) !important;  /* Semi-transparent light gray */
+}
+
+
+/* Light theme - All border directions with gray shades */
+.light [class*="border-b-zinc"],
+.light [class*="border-t-zinc"],
+.light [class*="border-l-zinc"],
+.light [class*="border-r-zinc"],
+.light [class*="border-b-gray"],
+.light [class*="border-t-gray"],
+.light [class*="border-l-gray"],
+.light [class*="border-r-gray"],
+.light [class*="border-b-slate"],
+.light [class*="border-t-slate"],
+.light [class*="border-l-slate"],
+.light [class*="border-r-slate"] {
+  border-color: #d3d5d9 !important;  /* Medium gray borders */
+}
+
+/* Light theme - Inline background styles - Unified base */
+.light [style*="background-color: rgb(16, 18, 24)"],
+.light [style*="background-color:rgb(16,18,24)"],
+.light [style*="backgroundColor: rgb(16, 18, 24)"] {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+.light [style*="background: rgb(16, 18, 24)"],
+.light [style*="background:rgb(16,18,24)"] {
+  background: #E5E5E5 !important;  /* Base layer */
+}
+
+/* Light theme - Session manager and terminal bars - Chat layer (recessed) */
+.light .session-manager-bar,
+.light [class*="session-manager"],
+.light [class*="terminal-bar"] {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+  border-color: #CBCBCB !important;  /* Subtle borders */
+}
+
+/* Light theme - Override inline background styles for these bars */
+.light .session-manager-bar[style*="background-color"],
+.light div[class*="border-b"][style*="background-color: rgb(16, 18, 24)"] {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+}
+
+/* Light theme - Chat area - Recessed layer (darker) */
+.light [class*="chat-input"],
+.light [class*="message-input"] {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+  border-color: #CBCBCB !important;  /* Subtle borders */
+}
+
+.light [class*="chat-input"] input,
+.light [class*="chat-input"] textarea,
+.light [class*="message-input"] input,
+.light [class*="message-input"] textarea {
+  background-color: transparent !important;
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+/* Light theme - Model selector */
+.light [class*="model-selector"] {
+  background-color: #E5E5E5 !important;  /* Base layer */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light [class*="model-selector"]:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - All buttons hover - unified */
+.light button.hover\:bg-gray-800:hover,
+.light button[class*="hover:bg-gray"]:hover,
+.light button[class*="hover:bg-zinc"]:hover,
+.light button[class*="hover:bg-[#"]:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Specific hex color overrides - Base layer */
+.light [class*="bg-[#2d2d2d]"],
+.light [class*="bg-[#37373d]"],
+.light [class*="bg-[#424242]"],
+.light [class*="bg-[#2E2E2E]"] {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+.light [class*="hover:bg-[#2d2d2d]"]:hover,
+.light [class*="hover:bg-[#37373d]"]:hover,
+.light [class*="hover:bg-[#424242]"]:hover,
+.light [class*="hover:bg-[#2E2E2E]"]:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Border hex colors */
+.light [class*="border-[#2d2d2d]"],
+.light [class*="border-[#16171E]"] {
+  border-color: #CBCBCB !important;  /* Subtle borders */
+}
+
+/* Light theme - Background with opacity */
+.light [class*="bg-[#000000]/"],
+.light [class*="bg-[#17181F]"] {
+  background-color: rgba(229, 229, 229, 0.95) !important;  /* Base with opacity */
+}
+
+/* Light theme - Settings page borders */
+.light .settings-page-container .border-zinc-800,
+.light .settings-nav .border-zinc-800 {
+  border-color: #d3d5d9 !important;  /* Medium gray borders */
+}
+
+/* Light theme - Divider lines */
+.light hr,
+.light .border-b,
+.light .border-t {
+  border-color: #d3d5d9 !important;  /* Medium gray dividers */
+}
+
+/* ============================================================================
+   LIGHT THEME - CHAT INTERFACE COMPREHENSIVE STYLING
+   ============================================================================ */
+
+/* Light theme - CSS Variables for Chat Colors */
+.light {
+  --chat-bg-primary: #f8f9fa;
+  --chat-bg-secondary: #e8eaed;
+  --chat-bg-tertiary: #dfe1e5;
+  --chat-text-primary: #1a1a1a;
+  --chat-text-secondary: #404040;
+  --chat-text-tertiary: #737373;
+  --chat-border: #d3d5d9;
+  --chat-input-bg: #ffffff;
+  --chat-message-user-bg: #e8eaed;
+  --chat-message-assistant-bg: #f0f1f3;
+}
+
+/* Light theme - Chat Container Override for #17181F */
+.light [style*="backgroundColor: #17181F"],
+.light [style*="background-color: #17181F"],
+.light [style*="backgroundColor:#17181F"],
+.light [style*="background-color:#17181F"],
+.light [style*="background: #17181F"],
+.light [style*="background:#17181F"] {
+  background-color: var(--chat-bg-primary) !important;
+}
+
+/* Light theme - User Message Bubble Override for #252529 */
+.light [style*="backgroundColor: #252529"],
+.light [style*="background-color: #252529"],
+.light [style*="backgroundColor:#252529"],
+.light [style*="background-color:#252529"] {
+  background-color: var(--chat-message-user-bg) !important;
+}
+
+/* Light theme - Assistant Message Background Override for #1a1b26 */
+.light [style*="backgroundColor: #1a1b26"],
+.light [style*="background-color: #1a1b26"],
+.light [style*="backgroundColor:#1a1b26"],
+.light [style*="background-color:#1a1b26"] {
+  background-color: var(--chat-message-assistant-bg) !important;
+}
+
+/* Light theme - Chat Input Container Override for rgba(0,0,0,0.4) */
+.light [style*="background-color: rgba(0, 0, 0, 0.4)"],
+.light [style*="backgroundColor: rgba(0, 0, 0, 0.4)"],
+.light [style*="background: rgba(0, 0, 0, 0.4)"] {
+  background-color: var(--chat-input-bg) !important;
+  border: 1px solid var(--chat-border) !important;
+}
+
+/* Light theme - Model Dropdown Background */
+.light [style*="backgroundColor: #17181F"][class*="model"] {
+  background-color: var(--chat-input-bg) !important;
+  border: 1px solid var(--chat-border) !important;
+}
+
+/* Light theme - Chat Message Text Colors */
+.light .text-gray-100,
+.light .text-gray-200 {
+  color: var(--chat-text-primary) !important;
+}
+
+.light .text-gray-300,
+.light .text-gray-400 {
+  color: var(--chat-text-secondary) !important;
+}
+
+.light .text-gray-500 {
+  color: var(--chat-text-tertiary) !important;
+}
+
+/* Light theme - Chat Border Colors */
+.light [class*="border-[#16171E]"],
+.light [style*="border-color: #16171E"],
+.light [style*="borderColor: #16171E"] {
+  border-color: var(--chat-border) !important;
+}
+
+.light .border-gray-800 {
+  border-color: var(--chat-border) !important;
+}
+
+/* Light theme - Chat Scrollbar */
+.light .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+
+.light .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+.light .overflow-y-auto::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Light theme - Chat Button Hover States */
+.light button[class*="hover:bg-[#16171E]"]:hover {
+  background-color: var(--chat-bg-tertiary) !important;
+}
+
+.light button[class*="hover:border-[#020617]"]:hover {
+  border-color: var(--chat-border) !important;
+}
+
+/* Light theme - Chat Input Focus States */
+.light .focus-within\:border-\[#020617\]:focus-within {
+  border-color: #3b82f6 !important;
+}
+
+/* Light theme - Model Dropdown Items */
+.light [class*="bg-[#16171E]"] {
+  background-color: var(--chat-bg-secondary) !important;
+}
+
+.light [class*="border-[#020617]"] {
+  border-color: #3b82f6 !important;
+}
+
+/* Light theme - Thinking/Loading Indicator */
+.light .bg-\[#1a1b26\] {
+  background-color: var(--chat-message-assistant-bg) !important;
+}
+
+/* Light theme - Error State */
+.light .bg-red-900\/20 {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+.light .border-red-800 {
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+.light .text-red-400 {
+  color: #dc2626 !important;
+}
+
+/* Light theme - Smooth Transitions for Theme Switching */
+.light * {
+  transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Disable transitions during initial load */
+.no-transitions * {
+  transition: none !important;
+}
+
+/* Light theme - Chat Shadow Adjustments */
+.light [style*="box-shadow"] {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Light theme - Placeholder Text in Chat Input */
+.light .placeholder-gray-500::placeholder {
+  color: var(--chat-text-tertiary) !important;
+}
+
+/* Light theme - Disabled State in Chat */
+.light .disabled\:opacity-50:disabled {
+  opacity: 0.5 !important;
+  background-color: var(--chat-bg-tertiary) !important;
+}
+
+/* Light theme - Chat Icon Colors */
+.light svg {
+  color: inherit;
+}
+
+.light .text-gray-400 svg {
+  color: var(--chat-text-secondary) !important;
+}
+
+/* Light theme - Model Selector Text */
+.light .text-\[11px\],
+.light .text-\[12px\],
+.light .text-\[13px\],
+.light .text-\[14px\] {
+  color: inherit;
+}
+
+/* Light theme - Specific overrides for inline rgba values */
+.light [style*="rgba(0, 0, 0"] {
+  /* Will be handled by JavaScript override */
+}
+
+/* Light theme - Chat message max-width containers */
+.light .max-w-\[75\%\],
+.light .max-w-\[85\%\] {
+  /* Inherit parent styling */
+}
+
+/* Light theme - Rounded elements in chat */
+.light .rounded-md,
+.light .rounded-lg,
+.light .rounded-xl {
+  /* Maintain border radius */
+}
+
+/* ============================================================================
+   SMOOTH TRANSITIONS FOR THEME AND LAYOUT CHANGES
+   ============================================================================ */
+
+/* Smooth color transitions for theme switching */
+body,
+div,
+button,
+input,
+textarea,
+select {
+  transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth layout transitions for position changes */
+.sidebar,
+.chat-container,
+.terminal-container,
+[style*="order"] {
+  transition: order 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent layout shift during transitions */
+.layout-transitioning {
+  overflow: hidden;
+}
+
+/* Maintain scroll position during transitions */
+.scroll-lock {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+/* Transition completion detection */
+.transition-complete {
+  transition: none;
+}
+
+/* Disable transitions during initial page load */
+.preload * {
+  transition: none !important;
+}
+
+/* Smooth flexbox order transitions */
+.flex > * {
+  transition: order 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent rapid theme changes */
+.theme-changing {
+  pointer-events: none;
+}
+
+/* Smooth opacity transitions for layout changes */
+.layout-fade {
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth width transitions for resizable panels */
+.resizable-panel {
+  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Disable transitions when resizing */
+.resizing * {
+  transition: none !important;
+}
+
+
+/* ============================================================================
+   COMPREHENSIVE LIGHT THEME OVERRIDES FOR ALL PAGE ELEMENTS
+   ============================================================================ */
+
+/* Light theme - Terminal and Desktop iframe containers */
+.light iframe[title*="Terminal"],
+.light iframe[title*="Desktop"],
+.light iframe[title*="Kali"] {
+  border-color: #d3d5d9 !important;
+}
+
+/* Light theme - All divs with inline background styles - Base layer */
+.light div[style*="background-color: rgb(16"],
+.light div[style*="background-color:rgb(16"],
+.light div[style*="backgroundColor:rgb(16"] {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+/* Light theme - Chat-related divs with inline styles - Chat layer */
+.light .session-manager-bar[style*="background-color"],
+.light div.border-b[style*="background-color: rgb(16, 18, 24)"],
+.light div[class*="px-6"][class*="pb-4"][class*="pt-3"] {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+}
+
+/* Light theme - Collaborators button */
+.light button[aria-label="Collaborators"],
+.light button[title="Collaborators"] {
+  color: #5A5A5A !important;  /* Medium gray text */
+}
+
+.light button[aria-label="Collaborators"]:hover,
+.light button[title="Collaborators"]:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+/* Light theme - Terminal/Desktop toggle buttons */
+.light button[class*="text-gray-200"] {
+  color: #2C2C2C !important;  /* Softer black */
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+.light button[class*="text-gray-400"] {
+  color: #6A6A6A !important;  /* Medium gray text */
+}
+
+.light button[class*="text-gray-400"]:hover {
+  color: #2C2C2C !important;  /* Softer black */
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Hide/Show buttons */
+.light button[title*="Hide"] {
+  color: #6A6A6A !important;  /* Medium gray text */
+}
+
+.light button[title*="Hide"]:hover {
+  color: #2C2C2C !important;  /* Softer black */
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Session tabs */
+.light [class*="session"] button,
+.light [class*="Session"] button {
+  background-color: #E5E5E5 !important;  /* Base layer */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light [class*="session"] button:hover,
+.light [class*="Session"] button:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Close session button */
+.light button[aria-label="Close session"] {
+  opacity: 0;
+}
+
+.light button[aria-label="Close session"]:hover {
+  background-color: #d3d5d9 !important;
+  opacity: 1;
+}
+
+/* Light theme - Action buttons */
+.light button[aria-label="New session"],
+.light button[aria-label="View sessions"],
+.light button[aria-label="Tasks"],
+.light button[title="New session"],
+.light button[title="View sessions"],
+.light button[title="Tasks"] {
+  color: #6A6A6A !important;  /* Medium gray text */
+}
+
+.light button[aria-label="New session"]:hover,
+.light button[aria-label="View sessions"]:hover,
+.light button[aria-label="Tasks"]:hover,
+.light button[title="New session"]:hover,
+.light button[title="View sessions"]:hover,
+.light button[title="Tasks"]:hover {
+  color: #2C2C2C !important;  /* Softer black */
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Chat messages area - Recessed layer */
+.light [class*="chat-messages"],
+.light [class*="overflow-y-auto"] {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+}
+
+/* Light theme - Chat input buttons */
+.light button[title="Attach file"],
+.light button[title="Record audio"] {
+  color: #6A6A6A !important;  /* Medium gray text */
+}
+
+.light button[title="Attach file"]:hover,
+.light button[title="Record audio"]:hover {
+  color: #2C2C2C !important;  /* Softer black */
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Model selector dropdown */
+.light [class*="model-selector"] button {
+  color: #6A6A6A !important;  /* Medium gray text */
+}
+
+.light [class*="model-selector"] button:hover {
+  color: #2C2C2C !important;  /* Softer black */
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - SVG icons in light mode */
+.light svg[stroke="currentColor"] {
+  color: inherit !important;
+}
+
+/* Light theme - Resize handle */
+.light [class*="cursor-col-resize"] {
+  background-color: transparent !important;
+}
+
+.light [class*="cursor-col-resize"]:hover {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Light theme - Blue glow elements */
+.light [class*="bg-blue-500"] {
+  background-color: #3b82f6 !important;
+}
+
+/* Light theme - Rounded elements */
+.light [class*="rounded-t-lg"],
+.light [class*="rounded-b-xl"],
+.light [class*="rounded-lg"],
+.light [class*="rounded-xl"] {
+  /* Preserve border radius, just ensure colors are correct */
+}
+
+/* Light theme - Flex containers */
+.light [class*="flex"][class*="gap-"] {
+  /* Ensure flex containers don't override child colors */
+}
+
+/* Light theme - Text truncation */
+.light [class*="truncate"] {
+  color: inherit !important;
+}
+
+/* Light theme - Max width containers */
+.light [class*="max-w-"] {
+  /* Preserve max-width, ensure background is correct */
+  background-color: inherit !important;
+}
+
+/* Light theme - Padding containers */
+.light [class*="px-"][class*="py-"] {
+  /* Preserve padding, ensure colors are correct */
+}
+
+/* Light theme - Specific component backgrounds */
+.light .bg-\[#17181F\] {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+}
+
+.light .bg-\[#000000\]\/40 {
+  background-color: rgba(216, 216, 216, 0.95) !important;  /* Chat layer with opacity */
+}
+
+.light .border-\[#16171E\]\/30 {
+  border-color: rgba(203, 203, 203, 0.5) !important;  /* Subtle border with opacity */
+}
+
+/* Light theme - Focus states for chat input */
+.light .focus-within\:border-blue-500:focus-within {
+  border-color: #3b82f6 !important;
+}
+
+/* Light theme - Placeholder text in light mode */
+.light .placeholder-gray-500::placeholder {
+  color: #8A8A8A !important;  /* Very light gray - subtle but readable */
+}
+
+/* Light theme - Disabled states */
+.light .disabled\:opacity-50:disabled {
+  opacity: 0.5 !important;
+}
+
+/* Light theme - Transition states */
+.light [class*="transition-"] {
+  /* Preserve transitions */
+}
+
+/* Light theme - Shadow effects */
+.light .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Light theme - Z-index layers */
+.light [class*="z-"] {
+  /* Preserve z-index */
+}
+
+/* Light theme - Overflow handling */
+.light [class*="overflow-"] {
+  /* Preserve overflow behavior */
+}
+
+/* Light theme - Position absolute/fixed/relative */
+.light [class*="absolute"],
+.light [class*="fixed"],
+.light [class*="relative"] {
+  /* Preserve positioning */
+}
+
+/* Light theme - Flex direction */
+.light [style*="flex-direction"] {
+  /* Preserve flex direction */
+}
+
+/* Light theme - Width and height */
+.light [style*="width"],
+.light [style*="height"] {
+  /* Preserve dimensions */
+}
+
+/* Light theme - Opacity */
+.light [style*="opacity"] {
+  /* Preserve opacity unless overridden */
+}
+
+/* Light theme - Display properties */
+.light [style*="display: none"],
+.light [style*="display:none"] {
+  /* Preserve display none */
+}
+
+/* Light theme - Visibility */
+.light [style*="visibility"] {
+  /* Preserve visibility */
+}
+
+/* Light theme - Min/Max dimensions */
+.light [style*="min-height"],
+.light [style*="min-width"],
+.light [style*="max-height"],
+.light [style*="max-width"] {
+  /* Preserve min/max dimensions */
+}
+
+/* Light theme - Margin and padding inline styles */
+.light [style*="margin"],
+.light [style*="padding"] {
+  /* Preserve spacing */
+}
+
+/* Light theme - Border inline styles (except color) */
+.light [style*="border:"],
+.light [style*="border "] {
+  /* Preserve border width and style, override color */
+}
+
+/* Light theme - Transform */
+.light [style*="transform"] {
+  /* Preserve transforms */
+}
+
+/* Light theme - Transition inline styles */
+.light [style*="transition"] {
+  /* Preserve transitions */
+}
+
+/* Light theme - Pointer events */
+.light [style*="pointer-events"] {
+  /* Preserve pointer events */
+}
+
+/* Light theme - Image rendering */
+.light [style*="image-rendering"] {
+  /* Preserve image rendering */
+}
+
+/* Light theme - Color transparent */
+.light [style*="color:transparent"],
+.light [style*="color: transparent"] {
+  /* Preserve transparent color */
+}
+
+/* Light theme - SIDEBAR - Elevated layer (lighter than base) - z-index: 9999 */
+.light [data-sidebar="sidebar"],
+.light .sidebar,
+.light [class*="sidebar"],
+.light [data-sidebar="sidebar"] *,
+.light .sidebar * {
+  background-color: #D0D0D0 !important;  /* Sidebar - elevated layer (lighter) */
+  z-index: 9999 !important;  /* Very high z-index - above everything */
+}
+
+/* Light theme - Sidebar wrapper and all parent containers */
+.light .group\/sidebar-wrapper,
+.light [class*="sidebar-wrapper"],
+.light div:has([data-sidebar="sidebar"]),
+.light div:has(.sidebar) {
+  z-index: 9999 !important;  /* Ensure wrapper and parents are also very high */
+}
+
+/* Light theme - Override any z-index classes on sidebar */
+.light [data-sidebar="sidebar"][class*="z-"],
+.light .sidebar[class*="z-"] {
+  z-index: 9999 !important;  /* Force very high */
+}
+
+/* Light theme - Sidebar content areas */
+.light [data-sidebar="header"],
+.light [data-sidebar="content"],
+.light [data-sidebar="footer"] {
+  background-color: transparent !important;  /* Inherit from sidebar */
+}
+
+/* Light theme - Sidebar menu items - inherit sidebar color */
+.light [data-sidebar="menu"],
+.light [data-sidebar="menu-item"],
+.light [data-sidebar="menu-button"] {
+  background-color: transparent !important;  /* Inherit from sidebar */
+}
+
+/* Light theme - Sidebar menu hover - slightly darker than sidebar */
+.light [data-sidebar="menu-button"]:hover,
+.light [data-sidebar="menu-sub-button"]:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+/* Light theme - Sidebar active items */
+.light [data-sidebar="menu-button"][data-active="true"],
+.light [data-sidebar="menu-sub-button"][data-active="true"] {
+  background-color: #CBCBCB !important;  /* Active state */
+}
+
+/* Light theme - Sidebar borders */
+.light [data-sidebar="sidebar"] {
+  border-color: #CBCBCB !important;  /* Subtle border */
+}
+
+/* Light theme - CHAT INPUT CONTAINERS - Below sidebar in z-index */
+.light .chat-input-rolldown,
+.light .chat-input-initial {
+  background-color: #E5E5E5 !important;  /* Base layer - same as background */
+  z-index: 1 !important;  /* Very low - below sidebar */
+}
+
+.light .chat-input-rolldown *,
+.light .chat-input-initial * {
+  z-index: 1 !important;  /* Very low - below sidebar */
+}
+
+/* Light theme - QUERY BAR - Lighter color (elevated like sidebar) */
+.light .query-bar {
+  background-color: #D0D0D0 !important;  /* Lighter gray - same as sidebar */
+  z-index: 1 !important;  /* Very low - below sidebar */
+}
+
+/* Light theme - Override ALL z-index classes on query-bar and children */
+.light .query-bar.z-10,
+.light .query-bar[class*="z-"],
+.light .chat-input-rolldown[class*="z-"],
+.light .query-bar *[class*="z-"],
+.light .chat-input-rolldown *[class*="z-"] {
+  z-index: 1 !important;  /* Force lower than sidebar */
+}
+
+/* Light theme - Query bar group class override */
+.light .query-bar.group {
+  z-index: 1 !important;  /* Force lower than sidebar */
+}
+
+/* Light theme - Query bar specific overrides */
+.light .query-bar.bg-slate-800\/90,
+.light .bg-slate-800\/90 {
+  background-color: #D0D0D0 !important;  /* Lighter gray */
+  backdrop-filter: none !important;  /* Remove blur effect */
+}
+
+/* Light theme - Ensure all parent containers of chat input are low z-index */
+.light div:has(.chat-input-rolldown),
+.light div:has(.query-bar) {
+  z-index: 1 !important;  /* Parent containers also low */
+}
+
+/* Light theme - Query bar ring/border colors */
+.light .query-bar {
+  border-color: #CBCBCB !important;  /* Subtle border */
+}
+
+.light .ring-slate-700,
+.light .hover\:ring-slate-700:hover,
+.light .focus-within\:ring-slate-700:focus-within {
+  --tw-ring-color: #CBCBCB !important;  /* Subtle ring */
+}
+
+/* Light theme - Query bar buttons */
+.light .query-bar button {
+  background-color: transparent !important;
+  color: #5A5A5A !important;  /* Medium gray text */
+}
+
+.light .query-bar button:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+/* Light theme - Query bar textarea */
+.light .query-bar textarea {
+  background-color: transparent !important;
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light .query-bar textarea::placeholder {
+  color: #8A8A8A !important;  /* Very light gray - subtle but readable */
+}
+
+/* Light theme - Send button (white circle) */
+.light .send-button-circle {
+  background-color: #2C2C2C !important;  /* Dark button */
+  color: #E5E5E5 !important;  /* Light icon */
+}
+
+.light .send-button-circle:hover {
+  background-color: #3A3A3A !important;  /* Slightly lighter on hover */
+}
+
+/* Light theme - Model selector container - Base layer */
+.light .model-selector-container {
+  background-color: #E5E5E5 !important;  /* Base layer */
+}
+
+/* Light theme - Model selector in query bar */
+.light .model-selector-container button {
+  background-color: transparent !important;
+  color: #5A5A5A !important;  /* Medium gray text */
+}
+
+.light .model-selector-container button:hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light .model-selector-container button .text-white {
+  color: #2C2C2C !important;  /* Softer black */
+}
+
+.light .model-selector-container button .text-gray-300 {
+  color: #5A5A5A !important;  /* Medium gray */
+}
+
+.light .model-selector-container button:hover .text-gray-300 {
+  color: #2C2C2C !important;  /* Softer black on hover */
+}
+
+/* ============================================================================
+   END COMPREHENSIVE LIGHT THEME OVERRIDES
+   ============================================================================ */
+
+
+/* Light theme - Globe white circle override */
+.light canvas {
+  /* This will be handled via component logic, but we can add a filter as fallback */
+}
+
+/* Light theme - Ensure main content has proper margin when sidebar is collapsed */
+.light main {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* Light theme - Ensure content doesn't get covered by collapsed sidebar */
+.light .peer-data-\[state\=collapsed\]\:ml-\[--sidebar-width-icon\] {
+  margin-left: var(--sidebar-width-icon) !important;
+}
+
+
+/* Light theme - Make sidebar rail slimmer to not cover icons */
+.light [data-sidebar="rail"] {
+  width: 0.5rem !important;  /* Reduce from 1rem (w-4) to 0.5rem - much slimmer */
+  right: -0.5rem !important;  /* Adjust position accordingly */
+}
+
+/* Light theme - Adjust the rail's after pseudo-element (the visible line) */
+.light [data-sidebar="rail"]::after {
+  width: 1px !important;  /* Make the visible line even thinner */
+}
+
+
+/* Sidebar collapse/expand transition */
+[data-sidebar="sidebar"] {
+  transition: width 200ms ease-in-out !important;
+}
+
+/* Search input - match button dimensions */
+.light input[placeholder*="Search models"] {
+  height: 2.25rem !important;  /* h-9 = 36px */
+  padding-left: 2.25rem !important;  /* pl-9 */
+  padding-right: 0.75rem !important;  /* px-3 */
+  padding-top: 0.5rem !important;  /* py-2 */
+  padding-bottom: 0.5rem !important;  /* py-2 */
+}
+
+/* Search icon positioning */
+.light svg.lucide-search {
+  left: 0.75rem !important;  /* Adjust for proper alignment */
+}
+
+/* Tab buttons - rounded top corners only */
+.light nav button[class*="border-b-2"] {
+  border-top-left-radius: 0.5rem !important;  /* rounded-t-lg */
+  border-top-right-radius: 0.5rem !important;  /* rounded-t-lg */
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+/* Dark theme versions */
+input[placeholder*="Search models"] {
+  height: 2.25rem !important;
+  padding-left: 2.25rem !important;
+  padding-right: 0.75rem !important;
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+svg.lucide-search {
+  left: 0.75rem !important;
+}
+
+nav button[class*="border-b-2"] {
+  border-top-left-radius: 0.5rem !important;
+  border-top-right-radius: 0.5rem !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+
+/* Search input container - increase width */
+.relative.mb-3.px-2:has(input[placeholder*="Search models"]) {
+  padding-left: 0.25rem !important;  /* Reduce side padding */
+  padding-right: 0.25rem !important;  /* Reduce side padding */
+}
+
+/* Search input - make it wider */
+input[placeholder*="Search models"] {
+  width: 100% !important;
+  min-width: 200px !important;  /* Ensure minimum width */
+}
+
+
+/* Search input container - match button width exactly */
+.relative.mb-3:has(input[placeholder*="Search models"]) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Search input parent div - remove padding */
+div.relative.mb-3.px-2:has(input[placeholder*="Search models"]) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+
+/* Light theme - Default badge background */
+.light span.bg-\[#27272A\] {
+  background-color: #CBCBCB !important;  /* Hover feedback color */
+  color: #2C2C2C !important;  /* Softer black text for contrast */
+}
+
+
+/* Light theme - Default badge - more specific selector */
+.light span[class*="bg-[#27272A]"] {
+  background-color: #CBCBCB !important;
+  color: #2C2C2C !important;
+}
+
+/* Light theme - Badge with text "Default" */
+.light span.text-xs.rounded:contains("Default"),
+.light span.text-xs[class*="bg-[#"]:has(text()) {
+  background-color: #CBCBCB !important;
+  color: #2C2C2C !important;
+}
+
+/* Light theme - All small badges with dark backgrounds */
+.light span.text-xs.bg-\[#27272A\],
+.light span.text-xs[class*="bg-[#2"] {
+  background-color: #CBCBCB !important;
+  color: #2C2C2C !important;
+}
+
+
+/* Light theme - Settings header background */
+.light div.border-b.border-zinc-800:has(h1:contains("Settings")),
+.light div[class*="px-6"][class*="py-4"][class*="border-b"]:has(h1) {
+  background-color: #D8D8D8 !important;  /* Chat layer - slightly darker */
+  border-bottom-color: #B0B0B0 !important;  /* Darker border for separation */
+  border-bottom-width: 2px !important;  /* Slightly thicker for visibility */
+}
+
+/* Light theme - Settings page header with back button */
+.light div:has(> button > svg.lucide-arrow-left) {
+  background-color: #D8D8D8 !important;  /* Chat layer */
+  border-bottom-color: #B0B0B0 !important;  /* Darker border */
+  border-bottom-width: 2px !important;
+}
+
+
+/* Light theme - Settings header darker bottom border - more specific */
+.light div.flex.items-center.gap-4.px-6.py-4.border-b {
+  background-color: #D8D8D8 !important;
+  border-bottom: 2px solid #B0B0B0 !important;
+}
+
+/* Light theme - Any header with back button */
+.light div.flex.items-center[class*="border-b"]:has(svg.lucide-arrow-left) {
+  background-color: #D8D8D8 !important;
+  border-bottom: 2px solid #B0B0B0 !important;
+}
+
+
+/* Light theme - Back button in settings header */
+.light button:has(svg.lucide-arrow-left) {
+  background-color: transparent !important;  /* Transparent to inherit parent background */
+}
+
+/* Light theme - Back button hover state */
+.light button:has(svg.lucide-arrow-left):hover {
+  background-color: #CBCBCB !important;  /* Hover feedback */
+}
+
+
+/* Light theme - Settings sections background - slightly darker */
+.light .flex-1.overflow-hidden.mt-6,
+.light .flex-1.overflow-y-auto {
+  background-color: #D8D8D8 !important;  /* Section background - slightly darker */
+}
+
+/* Light theme - Settings left sidebar (model list) */
+.light .w-56.flex-shrink-0.border-r {
+  background-color: #D8D8D8 !important;  /* Section background */
+  border-color: #B0B0B0 !important;  /* Darker border for separation */
+}
+
+/* Light theme - Settings middle panel (model details) */
+.light .w-96.flex-shrink-0.overflow-y-auto {
+  background-color: #D8D8D8 !important;  /* Section background */
+  border-color: #B0B0B0 !important;  /* Darker border */
+}
+
+/* Light theme - Settings right panel (activity) */
+.light div.flex.gap-4.h-full > .flex-1.overflow-y-auto {
+  background-color: #D8D8D8 !important;  /* Section background */
+}
+
+/* Light theme - Card backgrounds in settings */
+.light .bg-zinc-900\/50 {
+  background-color: #CBCBCB !important;  /* Cards slightly darker than section */
+  border-color: #B0B0B0 !important;  /* Darker border */
+}
+
+
+/* Hide scrollbar for textarea inputs */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+
+/* Sidebar rounded corners on the right side */
+[data-sidebar="sidebar"] {
+  border-top-right-radius: 0.75rem !important;  /* 12px - rounded-xl */
+  border-bottom-right-radius: 0.75rem !important;
+  overflow: hidden;
+}
+
+/* Ensure sidebar wrapper doesn't interfere with rounding */
+.group.peer[data-side="left"] > div:last-child {
+  border-top-right-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+  overflow: hidden;
+}
+
+
+/* Sidebar performance optimizations */
+[data-sidebar="sidebar"] {
+  contain: layout style paint;
+  will-change: transform;
+}
+
+/* Optimize sidebar content rendering */
+[data-sidebar="content"] {
+  contain: layout style;
+}
+
+/* Optimize collapsible items */
+[data-radix-collapsible-content] {
+  contain: layout;
+}
+
+/* Reduce paint operations on hover */
+.sidebar-menu-button {
+  will-change: background-color;
+}
+
+
+/* Fast skeleton loader */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse {
+  animation: skeleton-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Optimize sidebar initial render */
+[data-sidebar="sidebar"] {
+  content-visibility: auto;
+}
+
+/* Sessions scrollbar - very thin line at bottom */
+.sessions-scrollbar {
+  position: relative;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1) !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+/* Custom scrollbar at the bottom - 1px thin line */
+.sessions-scrollbar::-webkit-scrollbar {
+  height: 1px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sessions-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0 !important;
+}
+
+.sessions-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-radius: 0 !important;
+  transition: background 0.2s ease !important;
+}
+
+.sessions-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.5) !important;
+}
+
+.sessions-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Completely remove arrows */
+.sessions-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
+/* Hide scrollbar completely */
+.sessions-scrollbar-thin {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.sessions-scrollbar-thin::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Hide scrollbar utility class */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Session tab hover - top border */
+.session-manager-bar .group:hover {
+  border-top: 1px solid #2d2d2d !important;
+  margin-top: -1px; /* Prevent layout shift */
+  position: relative;
+  z-index: 50;
+}
+
+/* Active session tab - no top border on hover */
+.session-manager-bar .group.bg-\[#2d2d2d\]:hover {
+  border-top: none !important;
+  margin-top: 0;
+}

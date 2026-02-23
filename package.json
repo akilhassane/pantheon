@@ -1,0 +1,42 @@
+{
+  "name": "pantheon",
+  "version": "1.0.0",
+  "description": "Multi-agentic AI platform for OS interaction",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "docker:build": "docker build -t pantheon .",
+    "docker:run": "docker run -it --rm pantheon",
+    "docker:compose": "docker-compose up --build"
+  },
+  "keywords": [
+    "mcp",
+    "pentest",
+    "security",
+    "cybersecurity"
+  ],
+  "author": "akilhassane",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "@supabase/supabase-js": "^2.80.0",
+    "axios": "^1.13.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "openai": "^6.16.0",
+    "pg": "^8.16.3",
+    "ssh2": "^1.15.0",
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "shadcn": "^3.5.0"
+  }
+}

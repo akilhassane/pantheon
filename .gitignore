@@ -1,0 +1,144 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+ThinClient/.env
+client-agent/.env
+
+# Build outputs
+.next/
+dist/
+build/
+*.log
+
+# Docker
+.session-storage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test-*.js
+test-*.py
+test-*.cjs
+test-*.ps1
+test-*.sh
+test-*.png
+test-*.json
+test-*.txt
+*-test.*
+*-debug.*
+
+# Temporary files
+temp-*
+*.tmp
+*.temp
+
+# Documentation (markdown files)
+*.md
+!README.md
+!QUICKSTART.md
+!DEPLOYMENT.md
+!DEPLOYMENT_SUMMARY.md
+!DEPLOYMENT_STATUS.md
+!ACTION_CHECKLIST.md
+!NETWORK_ARCHITECTURE.md
+!START_HERE.md
+!LICENSE
+
+# Screenshots and media
+screenshots/
+media/
+
+# VM files
+windows-vm-files/*/
+!windows-vm-files/*.ps1
+!windows-vm-files/*.conf
+!windows-vm-files/*.txt
+
+# Logs
+*.log
+*-logs.txt
+backend-logs*.txt
+
+# Database dumps
+*.sql
+!backend/database/migrations/*.sql
+
+# Backup files
+*.backup
+*.bak
+*-backup.*
+*-original.*
+
+# Compiled files
+*.pyc
+__pycache__/
+
+# Package files
+*.tgz
+*.tar.gz
+
+# Vercel
+.vercel/
+
+# Git
+.git/
+
+# Scripts (keep only essential ones)
+call-*.cjs
+call-*.js
+check-*.cjs
+check-*.ps1
+cleanup-*.cjs
+cleanup-*.ps1
+debug-*.cjs
+diagnose-*.cjs
+find-*.cjs
+fix-*.cjs
+fix-*.js
+fix-*.sh
+get-*.cjs
+list-*.cjs
+list-*.ps1
+merge-*.cjs
+query-*.cjs
+recreate-*.cjs
+restore-*.cjs
+set-*.cjs
+show-*.ps1
+sync-*.cjs
+transfer-*.cjs
+update-*.cjs
+update-*.ps1
+update-*.sql
+verify-*.cjs
+
+# Temporary scripts and configs
+shared-folder-nginx.conf
+setup-dnat.sh
+fix-socat-script.sh
+
+# JSON data files
+all_screen_elements.json
+screenshot-*.json
+temp_project_id.txt
+
+# OAuth setup files with secrets
+KEYCLOAK_CHECKLIST.md
+KEYCLOAK_CONFIGURATION_GUIDE.md
+KEYCLOAK_OAUTH_SETUP.md
+OAUTH_SETUP_GUIDE.md

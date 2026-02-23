@@ -1,0 +1,160 @@
+version: '3.8'
+
+# AI Backend Stack with Frontend
+# Frontend runs on localhost:3000 (Docker)
+# Backend runs on localhost:3002 (Docker)
+
+services:
+  # Keycloak - Local OAuth/OIDC Server
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: pantheon-keycloak
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+      - KC_DB_USERNAME=postgres
+      - KC_DB_PASSWORD=postgres
+      - KC_HOSTNAME=localhost
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
+      - KC_HEALTH_ENABLED=true
+    command: start-dev
+    networks:
+      - ai-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # PostgreSQL Database - Local database server
+  postgres:
+    image: postgres:16-alpine
+    container_name: pantheon-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ai_backend
+      - POSTGRES_MULTIPLE_DATABASES=keycloak
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d/migrations
+      - ./docker/postgres/create-multiple-databases.sh:/docker-entrypoint-initdb.d/00-create-multiple-databases.sh
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Frontend - Next.js web application
+  ai-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:3002
+    image: pantheon-frontend:local
+    container_name: pantheon-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3002
+    networks:
+      - ai-network
+    depends_on:
+      - ai-backend
+      - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # AI Backend - Main backend service
+  ai-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: pantheon-backend:local
+    container_name: pantheon-backend
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      # AI Provider API Keys
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      
+      # Keycloak Configuration
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost:8080
+      - KEYCLOAK_REALM=master
+      - KEYCLOAK_CLIENT_ID=pantheon-backend
+      
+      # Local PostgreSQL Configuration (primary database)
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_backend
+      - LOCAL_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_backend
+      - USE_LOCAL_POSTGRES=true
+      
+      # Server Configuration
+      - PORT=3002
+      - NODE_ENV=production
+      
+      # MCP Configuration
+      - MCP_MASTER_SECRET=${MCP_MASTER_SECRET}
+      
+      # Docker host path for Windows VM files (CRITICAL for shared folder mounts)
+      - HOST_WINDOWS_VM_FILES_PATH=/host/windows-vm-files
+      
+      # Backend container name (for network connections)
+      - BACKEND_CONTAINER_NAME=pantheon-backend
+    volumes:
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Windows VM files (for Windows projects)
+      # Mount to /host/windows-vm-files so HOST_WINDOWS_VM_FILES_PATH can reference it
+      - ./windows-vm-files:/host/windows-vm-files
+      # Also mount to /app/windows-vm-files for backward compatibility
+      - ./windows-vm-files:/app/windows-vm-files
+    networks:
+      - ai-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ai-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local

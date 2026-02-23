@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.supabase.com/mcp"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://ekkrtmslvdypwilhdpgk.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVra3J0bXNsdmR5cHdpbGhkcGdrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjQ2ODE1NywiZXhwIjoyMDc4MDQ0MTU3fQ.kP64jORQmmgsz7587P75zXPo7CpF7JOYZu1Ce50umMM"
+      },
+      "autoApprove": [
+        "list_projects",
+        "apply_migration",
+        "execute_sql",
+        "list_tables",
+        "get_project",
+        "restore_project",
+        "get_publishable_keys",
+        "get_project_url",
+        "get_advisors",
+        "get_advisors",
+        "get_logs",
+        "get_logs",
+        "pause_project",
+        "list_migrations",
+        "search_docs"
+      ]
+    }
+  }
+}

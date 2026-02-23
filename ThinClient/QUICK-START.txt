@@ -1,0 +1,76 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         THINCLIENT QUICK START                               ║
+║                    Enable Screenshots & Automation                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: Download ThinClient                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Open PowerShell and run:
+
+    Invoke-WebRequest -Uri "http://172.30.0.1:8888/ThinClient/download-thinclient.ps1" -OutFile "$env:TEMP\download-thinclient.ps1"
+    powershell -ExecutionPolicy Bypass -File "$env:TEMP\download-thinclient.ps1"
+
+This will download all files to C:\ThinClient\
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: Install Prerequisites                                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+1. Node.js (v18+): https://nodejs.org/
+2. Python 3: https://www.python.org/
+3. Python packages:
+   
+   pip install pyautogui pillow cryptography
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: Start ThinClient                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    cd C:\ThinClient
+    .\start-thinclient.bat
+
+That's it! Screenshots will now work through the AI agent.
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ OPTIONAL: Auto-Start on Boot                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+To make ThinClient start automatically when Windows boots:
+
+    cd C:\ThinClient
+    powershell -ExecutionPolicy Bypass -File setup-autostart.ps1
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Can't access shared folder?
+  → Test: Invoke-WebRequest -Uri "http://172.30.0.1:8888/" -UseBasicParsing
+
+ThinClient won't start?
+  → Check Python: python --version
+  → Check Node.js: node --version
+  → Check packages: pip list
+
+Need help?
+  → Read: C:\ThinClient\WINDOWS-VM-SETUP.md
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ WHAT IS THINCLIENT?                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ThinClient connects your Windows VM to the AI agent, enabling:
+  • Screenshots with OCR (text recognition)
+  • Mouse control (move, click, scroll)
+  • Keyboard control (type, press keys)
+  • PowerShell execution
+  • UI element detection
+
+All scripts are encrypted and executed securely. Your project has a unique
+encryption key that ensures only your AI agent can control your Windows VM.
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    Questions? Check WINDOWS-VM-SETUP.md                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝

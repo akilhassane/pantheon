@@ -1,0 +1,16 @@
+{
+  "name": "pantheon-client-agent",
+  "version": "1.0.0",
+  "description": "Pantheon client agent for running containers on local machines",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "install-service": "node install-service.js"
+  },
+  "dependencies": {
+    "dockerode": "^4.0.2",
+    "ws": "^8.18.3",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.1"
+  }
+}

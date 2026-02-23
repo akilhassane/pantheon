@@ -1,0 +1,17 @@
+{
+  "name": "windows-mcp-client",
+  "version": "1.0.0",
+  "description": "Windows MCP Client - Thin client for remote tool execution",
+  "main": "windows-mcp-client.js",
+  "scripts": {
+    "start": "node windows-mcp-client.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "dotenv": "^17.2.3",
+    "ws": "^8.18.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,179 @@
+// ADD TO page.tsx - Project Management Integration
+
+// 1. ADD IMPORTS
+import { ProjectCreationModal } from '@/components/modals/ProjectCreationModal'
+import { ShareProjectModal } from '@/components/modals/ShareProjectModal'
+import { AddCollaborationModal } from '@/components/modals/AddCollaborationModal'
+
+// 2. ADD STATE (after existing state declarations)
+const [projects, setProjects] = useState<Project[]>([])
+const [collaborations, setCollaborations] = useState<any[]>([])
+const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+const [showProjectModal, setShowProjectModal] = useState(false)
+const [showShareModal, setShowShareModal] = useState(false)
+const [showJoinModal, setShowJoinModal] = useState(false)
+const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+const [collaborators, setCollaborators] = useState<any[]>([])
+
+// 3. ADD API FUNCTIONS
+const createProject = async (name: string) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, userId: 'user-123' })
+    })
+    const data = await response.json()
+    if (data.success) {
+      setProjects(prev => [...prev, data.project])
+      setActiveProjectId(data.project.id)
+      addToast({ id: Date.now().toString(), type: 'success', message: 'Project created!', duration: 3000 })
+    }
+  } catch (error) {
+    console.error('Failed to create project:', error)
+    throw error
+  }
+}
+
+const loadProjects = async () => {
+  try {
+    const response = await fetch(`${backendUrl}/api/projects?userId=user-123`)
+    const data = await response.json()
+    if (data.success) {
+      setProjects(data.projects)
+    }
+  } catch (error) {
+    console.error('Failed to load projects:', error)
+  }
+}
+
+const shareProject = async (projectId: string) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/projects/${projectId}/share`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: 'user-123' })
+    })
+    const data = await response.json()
+    return { shareToken: data.shareToken }
+  } catch (error) {
+    console.error('Failed to share project:', error)
+    throw error
+  }
+}
+
+const joinProject = async (shareToken: string) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/collaborations/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shareToken, userId: 'user-123', userName: 'User' })
+    })
+    const data = await response.json()
+    if (data.success) {
+      loadCollaborations()
+      addToast({ id: Date.now().toString(), type: 'success', message: 'Joined project!', duration: 3000 })
+    }
+  } catch (error) {
+    console.error('Failed to join project:', error)
+    throw error
+  }
+}
+
+const loadCollaborations = async () => {
+  try {
+    const response = await fetch(`${backendUrl}/api/collaborations?userId=user-123`)
+    const data = await response.json()
+    if (data.success) {
+      setCollaborations(data.collaborations)
+    }
+  } catch (error) {
+    console.error('Failed to load collaborations:', error)
+  }
+}
+
+const deleteProject = async (projectId: string) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/projects/${projectId}`, {
+      method: 'DELETE'
+    })
+    const data = await response.json()
+    if (data.success) {
+      setProjects(prev => prev.filter(p => p.id !== projectId))
+      addToast({ id: Date.now().toString(), type: 'success', message: 'Project deleted', duration: 3000 })
+    }
+  } catch (error) {
+    console.error('Failed to delete project:', error)
+  }
+}
+
+const renameProject = async (projectId: string, newName: string) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/projects/${projectId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    })
+    const data = await response.json()
+    if (data.success) {
+      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, name: newName } : p))
+    }
+  } catch (error) {
+    console.error('Failed to rename project:', error)
+  }
+}
+
+// 4. ADD useEffect TO LOAD DATA
+useEffect(() => {
+  loadProjects()
+  loadCollaborations()
+}, [])
+
+// 5. UPDATE AppSidebar PROPS
+<AppSidebar
+  sessions={sessions}
+  projects={projects}
+  collaborations={collaborations}
+  activeSessionId={activeSessionId}
+  activeProjectId={activeProjectId}
+  onSessionSelect={switchToSession}
+  onProjectSelect={(id) => setActiveProjectId(id)}
+  onNewSession={createNewSession}
+  onNewProject={() => setShowProjectModal(true)}
+  onShareProject={(id) => {
+    setSelectedProjectId(id)
+    setShowShareModal(true)
+  }}
+  onAddCollaboration={() => setShowJoinModal(true)}
+  onLeaveCollaboration={(id) => {
+    // Implement leave logic
+  }}
+  onRenameProject={renameProject}
+  onDeleteProject={deleteProject}
+  onSearch={() => {}}
+  onSettings={() => router.push('/settings')}
+/>
+
+// 6. ADD MODALS (before closing </SidebarProvider>)
+<ProjectCreationModal
+  isOpen={showProjectModal}
+  onClose={() => setShowProjectModal(false)}
+  onCreateProject={createProject}
+/>
+
+<ShareProjectModal
+  isOpen={showShareModal}
+  projectId={selectedProjectId}
+  projectName={projects.find(p => p.id === selectedProjectId)?.name || ''}
+  onClose={() => setShowShareModal(false)}
+  onShare={shareProject}
+  onUpdatePermissions={async () => {}}
+  onRevokeAccess={async () => {}}
+  collaborators={collaborators}
+/>
+
+<AddCollaborationModal
+  isOpen={showJoinModal}
+  onClose={() => setShowJoinModal(false)}
+  onJoinProject={joinProject}
+/>
