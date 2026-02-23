@@ -1,15 +1,12 @@
-# Pantheon AI Backend
+# Pantheon
 
 Enterprise-grade AI backend system with Windows VM integration, multi-model AI support, and OAuth authentication.
 
 ## Platform Demo
 
-![Platform Demo](media/platform-demo-compressed.mp4)
+https://github.com/user-attachments/assets/your-video-id-here
 
-<video width="100%" controls autoplay loop muted>
-  <source src="media/platform-demo-compressed.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+> Note: The video above demonstrates the complete Pantheon platform including project creation, Windows VM management, and AI model integration.
 
 ## Table of Contents
 
@@ -171,13 +168,31 @@ chmod +x deploy.sh
   - Username: `admin`
   - Password: `admin` (change in production)
 
-### 5. Next Steps
+### 5. Uninstall (The Doofenshmirtz)
+
+To completely remove Pantheon from your system:
+
+**Windows:**
+```powershell
+.\the-doofenshmirtz.ps1
+```
+
+**Linux/Mac:**
+```bash
+chmod +x the-doofenshmirtz.sh
+./the-doofenshmirtz.sh
+```
+
+Options:
+- `--keep-images`: Keep Docker images
+- `--keep-volumes`: Keep data volumes (preserves database)
+- `--force`: Skip confirmation prompt
+
+### 6. Next Steps
 
 1. [Configure Keycloak OAuth providers](docs/KEYCLOAK_SETUP.md)
 2. [Set up AI models](docs/MODEL_CONFIGURATION.md)
-3. [Create your first project](docs/USAGE.md#creating-a-project)
-
-For detailed installation instructions, see the [Installation Guide](docs/INSTALLATION.md).
+3. [Create your first project](docs/USAGE.md)
 
 ## Documentation
 
@@ -185,45 +200,32 @@ For detailed installation instructions, see the [Installation Guide](docs/INSTAL
 
 - [Installation Guide](docs/INSTALLATION.md) - Complete installation instructions
 - [Configuration Guide](docs/CONFIGURATION.md) - Environment and service configuration
-- [Quick Start Tutorial](docs/QUICKSTART.md) - Get up and running in 5 minutes
 
 ### Configuration
 
 - [Keycloak Setup](docs/KEYCLOAK_SETUP.md) - OAuth provider configuration
 - [Model Configuration](docs/MODEL_CONFIGURATION.md) - AI model setup and selection
-- [Database Setup](docs/DATABASE.md) - PostgreSQL configuration and migrations
-- [Network Configuration](docs/NETWORK.md) - Network architecture and isolation
 
 ### Usage
 
 - [Usage Guide](docs/USAGE.md) - Complete user guide
 - [API Documentation](docs/API.md) - REST and WebSocket API reference
-- [VM Management](docs/VM_MANAGEMENT.md) - Windows VM operations
-- [Project Management](docs/PROJECT_MANAGEMENT.md) - Creating and managing projects
 
 ### Operations
 
-- [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment
-- [Scaling Guide](docs/SCALING.md) - Horizontal and vertical scaling
-- [Monitoring](docs/MONITORING.md) - Health checks and logging
+- [Deployment Guide](DEPLOYMENT.md) - Production deployment
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
-
-### Development
-
-- [Contributing Guide](CONTRIBUTING.md) - How to contribute
-- [Development Setup](docs/DEVELOPMENT.md) - Local development environment
-- [API Development](docs/API_DEVELOPMENT.md) - Extending the API
-- [Testing Guide](docs/TESTING.md) - Running tests
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+We welcome contributions! To contribute:
 
-- Code of Conduct
-- Development process
-- Submitting pull requests
-- Coding standards
-- Testing requirements
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+Please ensure your code follows the existing style and includes appropriate tests.
 
 ## License
 
@@ -247,8 +249,6 @@ When reporting issues, please include:
 4. Relevant logs
 5. Configuration (sanitized)
 
-See [Issue Template](.github/ISSUE_TEMPLATE.md) for details.
-
 ## Acknowledgments
 
 - [OpenRouter](https://openrouter.ai) - Multi-model AI access
@@ -263,5 +263,3 @@ See [Issue Template](.github/ISSUE_TEMPLATE.md) for details.
 - **Status**: Production Ready
 - **Last Updated**: 2026-02-23
 - **Maintained**: Yes
-
-For release notes and changelog, see [CHANGELOG.md](CHANGELOG.md).
