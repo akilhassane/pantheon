@@ -59,9 +59,8 @@ temp-*
 !START_HERE.md
 !LICENSE
 
-# Screenshots and media
+# Screenshots
 screenshots/
-media/
 
 # VM files
 windows-vm-files/*/

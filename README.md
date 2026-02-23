@@ -2,6 +2,8 @@
 
 Enterprise-grade AI backend system with Windows VM integration, multi-model AI support, and OAuth authentication.
 
+![Platform Demo](media/platform-demo.gif)
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -258,6 +260,8 @@ Users can select models through:
    - Select preferred model
    - Configure model parameters
 
+   ![Add Models](media/add-models.gif)
+
 2. **API**
    ```bash
    POST /api/user/settings
@@ -281,6 +285,8 @@ Add custom models by:
    - Provider
    - API endpoint
    - Parameters
+
+   ![Custom Modes](media/custom-modes.gif)
 
 ## Deployment
 
