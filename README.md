@@ -1,284 +1,583 @@
 # Pantheon AI Backend
 
-A comprehensive AI-powered backend system with Windows VM integration, featuring multi-model AI support, OAuth authentication, and containerized deployment.
+Enterprise-grade AI backend system with Windows VM integration, multi-model AI support, and OAuth authentication.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [Environment Variables](#environment-variables)
+  - [Keycloak Setup](#keycloak-setup)
+  - [Model Configuration](#model-configuration)
+- [Deployment](#deployment)
+- [Usage Guide](#usage-guide)
+- [API Documentation](#api-documentation)
+- [Network Architecture](#network-architecture)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+Pantheon is a comprehensive AI backend platform that provides:
+
+- Multi-model AI integration (OpenRouter, Gemini, OpenAI, Anthropic)
+- Windows 11 VM management with MCP protocol
+- OAuth 2.0 authentication via Keycloak
+- PostgreSQL database with row-level security
+- Docker-based deployment with network isolation
+- Project-based resource management
 
 ## Features
 
-- **Multi-Model AI Support**: OpenRouter, Gemini, OpenAI, Anthropic
-- **Windows VM Integration**: Automated Windows 11 VM management with MCP protocol
-- **OAuth Authentication**: Keycloak-based authentication and authorization
-- **PostgreSQL Database**: Persistent storage for users, projects, and AI interactions
-- **Docker-based Deployment**: Fully containerized with static IP networking
-- **Project Isolation**: Each Windows project runs in its own isolated network
-- **Shared Folder Access**: Secure file sharing between host and Windows VMs
+### Core Capabilities
+
+- **Multi-Model AI Support**: Integrate with multiple AI providers through a unified API
+- **Windows VM Management**: Create and manage Windows 11 virtual machines for AI agents
+- **Authentication**: Enterprise-grade OAuth 2.0 with Keycloak
+- **Database**: PostgreSQL with automatic migrations and RLS policies
+- **Network Isolation**: Each project runs in its own isolated Docker network
+- **File Sharing**: Secure shared folders between host and Windows VMs
+- **API Management**: User-specific API keys with usage tracking
+
+### Technical Features
+
+- Docker containerization with health checks
+- Static IP addressing for reliable networking
+- Multi-homed containers for cross-network communication
+- Automatic database migrations
+- Real-time collaboration support
+- Comprehensive audit logging
 
 ## Architecture
 
-### Services
+### System Components
 
-- **Frontend** (Port 3000): Next.js web application
-- **Backend** (Port 3002): Node.js API service with Docker socket access
-- **Keycloak** (Port 8080): OAuth/OIDC authentication server
-- **PostgreSQL** (Port 5432): Primary database
-- **Windows Tools API** (Port 8090): Windows VM management service
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Main Network (10.0.1.0/24)              │
+│                                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
+│  │ Frontend │  │ Backend  │  │ Keycloak │  │ Postgres │  │
+│  │ :3000    │  │ :3002    │  │ :8080    │  │ :5432    │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           │ Multi-homed
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Project Network (172.30.x.0/24)                │
+│                                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
+│  │ Windows  │  │  Shared  │  │  Tools   │  │ Backend  │  │
+│  │   VM     │  │  Folder  │  │   API    │  │(bridge)  │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### Network Configuration
 
-All services run on a dedicated network (`mcp-server_ai-network`) with static IPs:
+**Main Network**: `mcp-server_ai-network` (10.0.1.0/24)
+- Frontend: 10.0.1.5
+- Backend: 10.0.1.2
+- Keycloak: 10.0.1.3
+- PostgreSQL: 10.0.1.4
+- Windows Tools API: 10.0.1.6
 
-- Backend: `10.0.1.2`
-- Keycloak: `10.0.1.3`
-- PostgreSQL: `10.0.1.4`
-- Frontend: `10.0.1.5`
-- Windows Tools API: `10.0.1.6`
+**Project Networks**: `project-{id}-network` (172.30.x.0/24)
+- Windows VM: 172.30.x.2
+- Shared Folder: 172.30.x.20
+- Tools API: 172.30.x.1 (multi-homed)
+- Backend: 172.30.x.3 (multi-homed)
 
-Each Windows project gets its own isolated network (e.g., `project-{id}-network`) with subnet `172.30.x.0/24`.
+## Prerequisites
 
-## Quick Start
-
-### Prerequisites
+### System Requirements
 
 - Docker Desktop (Windows/Mac) or Docker Engine (Linux)
-- 8GB+ RAM recommended
-- 50GB+ free disk space (for Windows VM images)
+- 8GB RAM minimum (16GB recommended)
+- 50GB free disk space
+- Git
 
-### Installation
+### Required Accounts
 
-#### Windows
+- [DockerHub](https://hub.docker.com) account (for pulling images)
+- [OpenRouter](https://openrouter.ai) API key
+- [Google AI Studio](https://makersuite.google.com/app/apikey) API key (Gemini)
+- Optional: OpenAI, Anthropic API keys
 
-```powershell
-# Clone the repository
+## Installation
+
+### Quick Start
+
+```bash
+# Clone repository
 git clone https://github.com/akilhassane/pantheon.git
 cd pantheon
 
-# Copy environment file and configure
+# Copy environment template
 cp .env.example .env
+
 # Edit .env with your API keys
+nano .env  # or use your preferred editor
 
 # Deploy
-.\deploy.ps1
+./deploy.sh  # Linux/Mac
+# or
+.\deploy.ps1  # Windows
 ```
 
-#### Linux/Mac
+### Manual Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/akilhassane/pantheon.git
-cd pantheon
+1. **Clone Repository**
+   ```bash
+   git clone https://github.com/akilhassane/pantheon.git
+   cd pantheon
+   ```
 
-# Copy environment file and configure
-cp .env.example .env
-# Edit .env with your API keys
+2. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   ```
 
-# Make scripts executable
-chmod +x deploy.sh build-and-push.sh
+3. **Edit Configuration**
+   
+   Required variables in `.env`:
+   ```env
+   OPENROUTER_API_KEY=your_openrouter_key
+   GEMINI_API_KEY=your_gemini_key
+   MCP_MASTER_SECRET=your_random_secret_key
+   POSTGRES_PASSWORD=secure_password
+   ```
 
-# Deploy
-./deploy.sh
-```
+4. **Start Services**
+   ```bash
+   docker-compose -f docker-compose.production.yml up -d
+   ```
 
-### Configuration
+5. **Verify Deployment**
+   ```bash
+   docker ps
+   ```
 
-Edit `.env` file with your credentials:
+## Configuration
 
-```env
-# Required: AI Provider API Keys
-OPENROUTER_API_KEY=your_openrouter_key
-GEMINI_API_KEY=your_gemini_key
+### Environment Variables
 
-# Optional: Additional AI Providers
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
+#### Required Variables
 
-# Required: MCP Master Secret (generate a random string)
-MCP_MASTER_SECRET=your_random_secret_key
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `OPENROUTER_API_KEY` | OpenRouter API key | `sk-or-v1-...` |
+| `GEMINI_API_KEY` | Google Gemini API key | `AIzaSy...` |
+| `MCP_MASTER_SECRET` | Master encryption key | Random 32+ char string |
 
-# Optional: Database Password (defaults to 'postgres')
-POSTGRES_PASSWORD=postgres
+#### Optional Variables
 
-# Optional: Keycloak Admin Password (defaults to 'admin')
-KEYCLOAK_ADMIN_PASSWORD=admin
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key | - |
+| `ANTHROPIC_API_KEY` | Anthropic API key | - |
+| `POSTGRES_PASSWORD` | Database password | `postgres` |
+| `KEYCLOAK_ADMIN_PASSWORD` | Keycloak admin password | `admin` |
 
-### Access
+### Keycloak Setup
 
-After deployment:
+#### Initial Configuration
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3002
-- **Keycloak Admin**: http://localhost:8080 (admin/admin)
-- **PostgreSQL**: localhost:5432
+1. **Access Keycloak Admin Console**
+   - URL: http://localhost:8080
+   - Username: `admin`
+   - Password: `admin` (or value from `KEYCLOAK_ADMIN_PASSWORD`)
 
-## Development
+2. **Configure Realm**
+   - Realm: `master` (default)
+   - Client ID: `pantheon-frontend`
+   - Client Protocol: `openid-connect`
 
-### Building Images
+3. **Configure OAuth Providers**
 
-To build and push images to DockerHub:
+   **Google OAuth**:
+   - Navigate to: Identity Providers → Add provider → Google
+   - Client ID: From [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - Client Secret: From Google Cloud Console
+   - Redirect URI: `http://localhost:8080/realms/master/broker/google/endpoint`
 
-#### Windows
-```powershell
-.\build-and-push.ps1
-```
+   **Microsoft OAuth**:
+   - Navigate to: Identity Providers → Add provider → Microsoft
+   - Application ID: From [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps)
+   - Client Secret: From Azure Portal
+   - Redirect URI: `http://localhost:8080/realms/master/broker/microsoft/endpoint`
 
-#### Linux/Mac
-```bash
-./build-and-push.sh
-```
+4. **Configure Client Scopes**
+   - Add `email`, `profile`, `openid` scopes
+   - Enable user attribute mappers
 
-### Project Structure
+#### User Management
 
-```
-pantheon/
-├── backend/              # Backend API service
-│   ├── config/          # Configuration files
-│   ├── database/        # Database migrations
-│   └── Dockerfile       # Backend container image
-├── frontend/            # Next.js frontend
-│   └── Dockerfile       # Frontend container image
-├── docker/              # Docker utilities
-│   └── windows-tools-api/  # Windows VM management
-├── windows-vm-files/    # Windows project files
-├── docker-compose.yml   # Development compose file
-├── docker-compose.production.yml  # Production compose file
-├── deploy.ps1          # Windows deployment script
-├── deploy.sh           # Linux/Mac deployment script
-├── build-and-push.ps1  # Windows build script
-└── build-and-push.sh   # Linux/Mac build script
-```
+- Users are automatically created on first login via OAuth
+- User profiles include: email, name, picture
+- Session management: 30-minute idle timeout, 10-hour max session
 
-### Useful Commands
+### Model Configuration
 
-```bash
-# View logs
-docker-compose -f docker-compose.production.yml logs -f
+#### Available Models
 
-# View specific service logs
-docker-compose -f docker-compose.production.yml logs -f backend
+The system supports multiple AI providers:
 
-# Restart services
-docker-compose -f docker-compose.production.yml restart
+1. **OpenRouter** (Primary)
+   - Access to 100+ models
+   - Unified API interface
+   - Usage tracking included
 
-# Stop services
-docker-compose -f docker-compose.production.yml stop
+2. **Google Gemini**
+   - Gemini Pro
+   - Gemini Pro Vision
+   - Direct API access
 
-# Remove everything (including volumes)
-docker-compose -f docker-compose.production.yml down -v
+3. **OpenAI** (Optional)
+   - GPT-4, GPT-3.5
+   - Requires separate API key
 
-# Check service health
-docker ps --format "table {{.Names}}\t{{.Status}}"
-```
+4. **Anthropic** (Optional)
+   - Claude 3 family
+   - Requires separate API key
 
-## Windows VM Projects
+#### Model Selection
 
-### Creating a Windows Project
+Users can select models through:
 
-1. Log in to the frontend at http://localhost:3000
-2. Navigate to "Projects" → "Create New Project"
-3. Select "Windows 11" as the project type
-4. Wait for the VM to initialize (2-5 minutes)
+1. **Frontend UI**
+   - Navigate to Settings → Models
+   - Select preferred model
+   - Configure model parameters
 
-### Project Network Isolation
+2. **API**
+   ```bash
+   POST /api/user/settings
+   {
+     "preferred_model": "openai/gpt-4",
+     "model_parameters": {
+       "temperature": 0.7,
+       "max_tokens": 2000
+     }
+   }
+   ```
 
-Each Windows project runs in its own isolated Docker network:
+#### Custom Models
 
-- **Windows VM**: `172.30.x.2` (where x is project-specific)
-- **Windows Tools API**: `172.30.x.1`
-- **Shared Folder**: `172.30.x.20`
-- **Backend**: `172.30.x.3` (multi-homed)
+Add custom models by:
 
-The Windows VM can access:
-- Shared folder at `http://172.30.0.1:8888` (via socat proxy)
-- Tools API at `http://172.30.x.1:8090`
+1. Navigate to Settings → Custom Models
+2. Click "Add Model"
+3. Configure:
+   - Model ID
+   - Provider
+   - API endpoint
+   - Parameters
+
+## Deployment
+
+### Production Deployment
+
+1. **Update Environment**
+   ```bash
+   # Use strong passwords
+   POSTGRES_PASSWORD=<strong-password>
+   KEYCLOAK_ADMIN_PASSWORD=<strong-password>
+   MCP_MASTER_SECRET=<random-64-char-string>
+   ```
+
+2. **Deploy Services**
+   ```bash
+   docker-compose -f docker-compose.production.yml up -d
+   ```
+
+3. **Verify Health**
+   ```bash
+   # Check all services are healthy
+   docker ps --format "table {{.Names}}\t{{.Status}}"
+   
+   # Check logs
+   docker-compose -f docker-compose.production.yml logs -f
+   ```
+
+4. **Configure Firewall**
+   - Expose only necessary ports: 3000, 3002, 8080
+   - Use reverse proxy (nginx/traefik) for HTTPS
+   - Enable rate limiting
+
+### Scaling
+
+#### Horizontal Scaling
+
+- Run multiple backend instances behind load balancer
+- Use external PostgreSQL for shared state
+- Configure session affinity for WebSocket connections
+
+#### Vertical Scaling
+
+- Increase Docker resource limits
+- Allocate more RAM to PostgreSQL
+- Use SSD storage for database
+
+## Usage Guide
+
+### Creating a Project
+
+1. **Login**
+   - Navigate to http://localhost:3000
+   - Click "Sign In"
+   - Authenticate via Google/Microsoft
+
+2. **Create Project**
+   - Click "New Project"
+   - Select "Windows 11"
+   - Enter project name
+   - Click "Create"
+
+3. **Wait for Initialization**
+   - Windows VM creation: 2-5 minutes
+   - Status shown in UI
+   - Notification on completion
+
+### Accessing Windows VM
+
+1. **Via Frontend**
+   - Navigate to Projects → [Your Project]
+   - Click "Connect"
+   - Use web-based VNC viewer
+
+2. **Via MCP Protocol**
+   - Windows VM accessible at `172.30.x.2`
+   - MCP client pre-configured
+   - API endpoint: `http://172.30.x.1:8090`
 
 ### Shared Folder Access
 
-Files are shared between host and Windows VM via nginx container:
+Files are shared between host and Windows VM:
 
-- Host path: `./windows-vm-files/{project-id}/`
-- Windows VM access: `http://172.30.0.1:8888/`
-- Contains `.env` file with MCP configuration
+- **Host Path**: `./windows-vm-files/{project-id}/`
+- **Windows VM**: `http://172.30.0.1:8888/`
+- **Contains**: `.env` file with MCP configuration
 
-## Database Schema
+### Managing API Keys
 
-### Main Tables
+1. **Add API Key**
+   ```bash
+   POST /api/user/api-keys
+   {
+     "name": "My API Key",
+     "provider": "openrouter",
+     "key": "sk-or-v1-..."
+   }
+   ```
 
-- `users`: User accounts and profiles
-- `projects`: Windows VM projects
-- `chat_messages`: AI conversation history
-- `model_usage`: AI model usage tracking
-- `user_api_keys`: User-specific API keys
-- `user_settings`: User preferences and custom modes
+2. **List API Keys**
+   ```bash
+   GET /api/user/api-keys
+   ```
 
-### Migrations
+3. **Delete API Key**
+   ```bash
+   DELETE /api/user/api-keys/{key-id}
+   ```
 
-Database migrations are located in `backend/database/migrations/` and are automatically applied on startup.
+## API Documentation
 
-## Security
+### Authentication
 
-- **Network Isolation**: Each project runs in isolated Docker network
-- **No Host Port Binding**: Shared folders only accessible within project network
-- **OAuth Authentication**: Keycloak-based user authentication
-- **API Key Encryption**: User API keys encrypted in database
-- **Row-Level Security**: PostgreSQL RLS policies enforce data isolation
+All API requests require authentication:
+
+```bash
+Authorization: Bearer <keycloak-jwt-token>
+```
+
+### Endpoints
+
+#### Projects
+
+- `GET /api/projects` - List all projects
+- `POST /api/projects` - Create new project
+- `GET /api/projects/{id}` - Get project details
+- `DELETE /api/projects/{id}` - Delete project
+
+#### Chat
+
+- `POST /api/chat` - Send chat message
+- `GET /api/chat/history` - Get chat history
+- `DELETE /api/chat/history` - Clear chat history
+
+#### User Settings
+
+- `GET /api/user/settings` - Get user settings
+- `PUT /api/user/settings` - Update user settings
+- `GET /api/user/api-keys` - List API keys
+- `POST /api/user/api-keys` - Add API key
+
+### WebSocket API
+
+Connect to WebSocket for real-time updates:
+
+```javascript
+const ws = new WebSocket('ws://localhost:3002/ws');
+ws.send(JSON.stringify({
+  type: 'subscribe',
+  channel: 'project-updates'
+}));
+```
+
+## Network Architecture
+
+### Isolation Model
+
+Each project runs in an isolated Docker network:
+
+- **Security**: Projects cannot access each other
+- **Resources**: Dedicated network namespace per project
+- **Communication**: Only through backend API
+
+### Multi-Homed Containers
+
+Two containers bridge networks:
+
+1. **Backend** (10.0.1.2 + 172.30.x.3)
+   - Accesses main database
+   - Communicates with Windows VMs
+
+2. **Windows Tools API** (10.0.1.6 + 172.30.x.1)
+   - Manages Windows VMs
+   - Accesses main database
+
+### DNS Configuration
+
+- **Main Network**: `postgres`, `keycloak` aliases
+- **Project Networks**: `windows-tools-api` alias
+- **Resolution**: Docker internal DNS
 
 ## Troubleshooting
 
-### Services Not Starting
+### Common Issues
+
+#### Services Not Starting
 
 ```bash
-# Check Docker is running
-docker info
-
-# Check service logs
+# Check logs
 docker-compose -f docker-compose.production.yml logs
 
 # Restart services
 docker-compose -f docker-compose.production.yml restart
+
+# Check health
+docker inspect pantheon-backend --format='{{.State.Health.Status}}'
 ```
 
-### Database Connection Issues
+#### Database Connection Failed
 
 ```bash
-# Check PostgreSQL is healthy
-docker inspect pantheon-postgres --format='{{.State.Health.Status}}'
+# Verify PostgreSQL is running
+docker exec pantheon-postgres pg_isready -U postgres
 
-# Check database logs
-docker logs pantheon-postgres
-
-# Verify network connectivity
+# Check network connectivity
 docker exec pantheon-backend ping -c 3 postgres
+
+# Verify credentials in .env
 ```
 
-### Windows VM Not Accessible
+#### Windows VM Not Accessible
 
 ```bash
-# Check Windows container is running
+# Check Windows container
 docker ps | grep windows-project
 
-# Check socat proxy is running
+# Verify socat proxy
 docker exec windows-project-{id} ps aux | grep socat
 
-# Restart socat proxy
+# Restart proxy
 docker exec windows-project-{id} /usr/local/bin/start-socat-proxy.sh
+```
+
+#### Port Conflicts
+
+```bash
+# Find process using port
+netstat -ano | findstr :3000  # Windows
+lsof -i :3000                 # Linux/Mac
+
+# Stop conflicting service or change port in docker-compose.yml
+```
+
+### Logs
+
+View logs for debugging:
+
+```bash
+# All services
+docker-compose -f docker-compose.production.yml logs -f
+
+# Specific service
+docker logs pantheon-backend -f
+
+# Last 100 lines
+docker logs pantheon-backend --tail 100
+```
+
+### Health Checks
+
+```bash
+# Frontend
+curl http://localhost:3000
+
+# Backend
+curl http://localhost:3002/health
+
+# Keycloak
+curl http://localhost:8080/health/ready
 ```
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Development Setup
+
+1. Fork repository
+2. Create feature branch
+3. Make changes
+4. Run tests
+5. Submit pull request
+
+### Code Style
+
+- JavaScript: ESLint configuration
+- Commits: Conventional Commits format
+- Documentation: Markdown with proper formatting
+
+### Testing
+
+```bash
+# Run backend tests
+cd backend
+npm test
+
+# Run frontend tests
+cd frontend
+npm test
+```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For issues and questions:
-- GitHub Issues: https://github.com/akilhassane/pantheon/issues
-- Documentation: https://github.com/akilhassane/pantheon/wiki
+- **Issues**: [GitHub Issues](https://github.com/akilhassane/pantheon/issues)
+- **Documentation**: [Wiki](https://github.com/akilhassane/pantheon/wiki)
+- **Discussions**: [GitHub Discussions](https://github.com/akilhassane/pantheon/discussions)
 
 ## Acknowledgments
 
