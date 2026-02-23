@@ -3557,7 +3557,7 @@ CRITICAL: Analyze current state and execute the NEXT step with COORDINATES. DO N
               console.log(`🔧 Calling windowsClient.executeTool...`);
               
               // Add timeout to prevent hanging
-              const TOOL_TIMEOUT = 30000; // 30 seconds
+              const TOOL_TIMEOUT = 60000; // 60 seconds
               const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error(`Tool execution timeout after ${TOOL_TIMEOUT}ms`)), TOOL_TIMEOUT);
               });
